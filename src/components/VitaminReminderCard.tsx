@@ -11,6 +11,7 @@ import { dateKey } from '@/utils/date';
 import { VitaminIcon } from './VitaminIcon';
 import { StatusBadge } from './StatusBadge';
 import { AppSwitch } from './AppSwitch';
+import { scheduleLabel } from '@/utils/scheduleLabel';
 
 type Props = { reminder: ReminderWithStatus; canTake?: boolean; scheduledDate?: string; onTakenRecorded?: () => void; showToggle?: boolean };
 
@@ -61,14 +62,14 @@ export function VitaminReminderCard({ reminder, canTake = true, scheduledDate = 
       const result = await toggleReminder(reminder.id, enabled);
       if (!result.notificationsSynchronized) Alert.alert(
         'Reminder updated',
-        'The reminder was updated, but notifications could not be synchronized. MamaCare will repair them the next time it starts.',
+        'The reminder was updated, but notifications could not be synchronized. Reminder App will repair them the next time it starts.',
       );
     } catch (error) {
       if (__DEV__) console.warn('Reminder toggle failed', error);
       Alert.alert('Unable to update', 'Unable to update this reminder. Please try again.');
     }
   };
-  const accent = reminder.vitaminKey === 'calciumade' ? theme.calcium : theme.heme;
+  const accent = theme.primary;
   return (
     <Animated.View style={[styles.card, shadows.card, { backgroundColor: theme.surfaceElevated, borderColor: theme.border, borderLeftColor: accent, opacity: enabledProgress.interpolate({ inputRange: [0, 1], outputRange: [0.64, 1] }) }]}>
       <View style={styles.header}>
@@ -77,7 +78,7 @@ export function VitaminReminderCard({ reminder, canTake = true, scheduledDate = 
         <StatusBadge status={reminder.status} />
       </View>
       <View style={[styles.meta, { borderTopColor: theme.divider }]}>
-        <View style={styles.metaItem}><Ionicons name="restaurant-outline" size={16} color={theme.textSecondary} /><Text style={[styles.metaText, { color: theme.textSecondary }]}>{reminder.doseLabel} · {reminder.mealPeriod}</Text></View>
+        <View style={styles.metaItem}><Ionicons name="restaurant-outline" size={16} color={theme.textSecondary} /><Text style={[styles.metaText, { color: theme.textSecondary }]}>{reminder.doseLabel} · {scheduleLabel(reminder.mealPeriod, reminder.customScheduleLabel)}</Text></View>
         <Text style={[styles.time, { color: theme.text }]}>{formatTime(reminder.scheduledTime)}</Text>
       </View>
       {showToggle && <View style={[styles.toggleRow, { borderTopColor: theme.divider }]}><View><Text style={[styles.toggleLabel, { color: theme.text }]}>Reminder</Text><Text style={[styles.toggleState, { color: theme.textSecondary }]}>{reminder.enabled ? 'Enabled' : 'Disabled'}</Text></View><AppSwitch accessibilityLabel={`${reminder.vitaminName} ${reminder.doseLabel} enabled`} value={reminder.enabled} disabled={toggleBusy || busy} onValueChange={(value) => void onToggle(value)} /></View>}

@@ -16,7 +16,7 @@ export function StatusBadge({ status }: { status: ReminderStatus }) {
   const palette = status === 'taken' ? [theme.primarySoft, theme.primaryStrong]
     : status === 'upcoming' ? [theme.input, theme.muted]
       : status === 'due' ? [theme.primarySoft, theme.primaryStrong]
-        : status === 'unconfirmed' ? [theme.calciumSoft, theme.warning] : [theme.input, theme.muted];
+        : status === 'unconfirmed' ? [theme.warningSoft, theme.warning] : [theme.input, theme.muted];
   return <Animated.View style={[styles.badge, { backgroundColor: palette[0], opacity: reveal, transform: [{ scale: reveal.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }] }]}><Text style={[styles.text, { color: palette[1] }]}>{labels[status]}</Text></Animated.View>;
 }
 const styles = StyleSheet.create({ badge: { width: 76, height: 26, borderRadius: 9, alignItems: 'center', justifyContent: 'center' }, text: { fontSize: 10, fontWeight: '800' } });

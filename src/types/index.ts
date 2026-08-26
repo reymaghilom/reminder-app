@@ -3,17 +3,50 @@ export type ReminderStatus = 'upcoming' | 'due' | 'taken' | 'unconfirmed' | 'dis
 export type RepeatIntervalMinutes = 5 | 10 | 15 | 20 | 30;
 export type MaximumReminders = 1 | 2 | 3 | 4 | 5;
 
+export interface Vitamin {
+  id: number;
+  vitaminKey: string;
+  name: string;
+  brand: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt: string | null;
+}
+
+export interface DoseScheduleInput {
+  id?: number;
+  doseNumber: number;
+  mealPeriod: MealPeriod;
+  customScheduleLabel: string;
+  scheduledTime: string;
+  enabled: boolean;
+  sortOrder: number;
+}
+
+export interface VitaminInput {
+  name: string;
+  brand: string;
+  description: string;
+  doses: DoseScheduleInput[];
+}
+
 export interface Reminder {
   id: number;
+  vitaminId: number;
   reminderKey: string;
-  vitaminKey: 'calciumade' | 'heme_up_fa';
+  vitaminKey: string;
   vitaminName: string;
   brand: string;
   description: string;
   doseLabel: string;
+  doseNumber: number;
   mealPeriod: MealPeriod;
+  customScheduleLabel: string;
   scheduledTime: string;
   enabled: boolean;
+  sortOrder: number;
+  archivedAt: string | null;
   notificationId: string | null;
   createdAt: string;
   updatedAt: string;
@@ -28,6 +61,7 @@ export interface IntakeLog {
   vitaminNameSnapshot: string;
   doseLabelSnapshot: string;
   mealPeriodSnapshot: MealPeriod;
+  customScheduleLabelSnapshot: string;
   scheduledTimeSnapshot: string;
   createdAt: string;
 }
@@ -47,6 +81,7 @@ export interface ReminderOccurrence {
   vitaminNameSnapshot: string;
   doseLabelSnapshot: string;
   mealPeriodSnapshot: MealPeriod;
+  customScheduleLabelSnapshot: string;
   scheduledTimeSnapshot: string;
   enabledSnapshot: boolean;
 }

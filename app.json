@@ -1,29 +1,53 @@
 {
   "expo": {
-    "name": "MamaCare",
+    "name": "Reminder App",
     "slug": "mamacare",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/reminder-app-icon.png",
     "scheme": "mamacare",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "ios": { "supportsTablet": true, "bundleIdentifier": "com.mamacare.reminder" },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.mamacare.reminder"
+    },
     "android": {
       "package": "com.mamacare.reminder",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
-        "backgroundColor": "#FAF9F4"
+        "foregroundImage": "./assets/reminder-app-icon.png",
+        "backgroundColor": "#FEFEFC"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
     "plugins": [
       "expo-router",
-      ["expo-splash-screen", { "backgroundColor": "#FEFEFC", "image": "./assets/mamacare-logo-official.png", "imageWidth": 300, "resizeMode": "contain" }],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FEFEFC",
+          "image": "./assets/reminder-app-logo.png",
+          "imageWidth": 280,
+          "resizeMode": "contain"
+        }
+      ],
       "expo-sqlite",
-      ["expo-notifications", { "defaultChannel": "vitamin-reminders" }]
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "vitamin-reminders"
+        }
+      ]
     ],
-    "experiments": { "typedRoutes": true }
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "11c03a94-28d6-4dbf-82d1-c690c92ef385"
+      }
+    }
   }
 }

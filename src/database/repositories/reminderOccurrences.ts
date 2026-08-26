@@ -7,13 +7,14 @@ type OccurrenceRow = {
   vitamin_name_snapshot: string;
   dose_label_snapshot: string;
   meal_period_snapshot: Reminder['mealPeriod'];
+  custom_schedule_label_snapshot: string;
   scheduled_time_snapshot: string;
   enabled_snapshot: number;
 };
 
 const occurrenceColumns = `
   reminder_id, scheduled_date, vitamin_name_snapshot, dose_label_snapshot,
-  meal_period_snapshot, scheduled_time_snapshot, enabled_snapshot
+  meal_period_snapshot, custom_schedule_label_snapshot, scheduled_time_snapshot, enabled_snapshot
 `;
 
 function mapOccurrence(row: OccurrenceRow): ReminderOccurrence {
@@ -23,6 +24,7 @@ function mapOccurrence(row: OccurrenceRow): ReminderOccurrence {
     vitaminNameSnapshot: row.vitamin_name_snapshot,
     doseLabelSnapshot: row.dose_label_snapshot,
     mealPeriodSnapshot: row.meal_period_snapshot,
+    customScheduleLabelSnapshot: row.custom_schedule_label_snapshot,
     scheduledTimeSnapshot: row.scheduled_time_snapshot,
     enabledSnapshot: Boolean(row.enabled_snapshot),
   };
@@ -36,13 +38,14 @@ async function writeOccurrences(reminders: Reminder[], scheduledDates: string[],
   const createdAt = new Date().toISOString();
   for (const reminder of reminders) {
     for (const scheduledDate of scheduledDates) {
-      placeholders.push('(?, ?, ?, ?, ?, ?, ?, ?)');
+      placeholders.push('(?, ?, ?, ?, ?, ?, ?, ?, ?)');
       values.push(
         reminder.id,
         scheduledDate,
         reminder.vitaminName,
         reminder.doseLabel,
         reminder.mealPeriod,
+        reminder.customScheduleLabel,
         reminder.scheduledTime,
         reminder.enabled ? 1 : 0,
         createdAt,
@@ -51,17 +54,18 @@ async function writeOccurrences(reminders: Reminder[], scheduledDates: string[],
   }
   const command = replace ? `
     INSERT INTO reminder_occurrences
-      (reminder_id, scheduled_date, vitamin_name_snapshot, dose_label_snapshot, meal_period_snapshot, scheduled_time_snapshot, enabled_snapshot, created_at)
+      (reminder_id, scheduled_date, vitamin_name_snapshot, dose_label_snapshot, meal_period_snapshot, custom_schedule_label_snapshot, scheduled_time_snapshot, enabled_snapshot, created_at)
     VALUES ${placeholders.join(', ')}
     ON CONFLICT(reminder_id, scheduled_date) DO UPDATE SET
       vitamin_name_snapshot = excluded.vitamin_name_snapshot,
       dose_label_snapshot = excluded.dose_label_snapshot,
       meal_period_snapshot = excluded.meal_period_snapshot,
+      custom_schedule_label_snapshot = excluded.custom_schedule_label_snapshot,
       scheduled_time_snapshot = excluded.scheduled_time_snapshot,
       enabled_snapshot = excluded.enabled_snapshot
   ` : `
     INSERT OR IGNORE INTO reminder_occurrences
-      (reminder_id, scheduled_date, vitamin_name_snapshot, dose_label_snapshot, meal_period_snapshot, scheduled_time_snapshot, enabled_snapshot, created_at)
+      (reminder_id, scheduled_date, vitamin_name_snapshot, dose_label_snapshot, meal_period_snapshot, custom_schedule_label_snapshot, scheduled_time_snapshot, enabled_snapshot, created_at)
     VALUES ${placeholders.join(', ')}
   `;
   await db.runAsync(command, ...values);
@@ -83,6 +87,19 @@ export async function listReminderOccurrencesForDate(scheduledDate: string): Pro
      WHERE scheduled_date = ?
      ORDER BY reminder_id`,
     scheduledDate,
+  );
+  return rows.map(mapOccurrence);
+}
+
+export async function listReminderOccurrencesForRange(start: string, end: string): Promise<ReminderOccurrence[]> {
+  const db = await getDatabase();
+  const rows = await db.getAllAsync<OccurrenceRow>(
+    `SELECT ${occurrenceColumns}
+     FROM reminder_occurrences
+     WHERE scheduled_date BETWEEN ? AND ?
+     ORDER BY scheduled_date, scheduled_time_snapshot, reminder_id`,
+    start,
+    end,
   );
   return rows.map(mapOccurrence);
 }

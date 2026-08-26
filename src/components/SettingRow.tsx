@@ -9,7 +9,7 @@ export function SettingRow({ icon, label, description, value, onPress, toggle, t
   const { theme } = useTheme();
   return (
     <Pressable disabled={!onPress || disabled} onPress={onPress} style={({ pressed }) => [styles.row, disabled && styles.disabled, !last && { borderBottomColor: theme.divider, borderBottomWidth: 1 }, pressed && { backgroundColor: theme.input, transform: [{ scale: 0.99 }] }]}>
-      <View style={[styles.icon, { backgroundColor: danger ? theme.hemeSoft : theme.primarySoft }]}><Ionicons name={icon} size={18} color={danger ? theme.danger : theme.primaryStrong} /></View>
+      <View style={[styles.icon, { backgroundColor: danger ? theme.dangerSoft : theme.primarySoft }]}><Ionicons name={icon} size={18} color={danger ? theme.danger : theme.primaryStrong} /></View>
       <View style={styles.copy}><Text style={[styles.label, { color: danger ? theme.danger : theme.text }]}>{label}</Text>{description && <Text style={[styles.description, { color: theme.textSecondary }]}>{description}</Text>}</View>
       {value && <Text style={[styles.value, { color: theme.textSecondary }]} numberOfLines={1}>{value}</Text>}
       {toggle && <AppSwitch accessibilityLabel={label} value={Boolean(toggleValue)} onValueChange={(next) => onToggle?.(next)} />}

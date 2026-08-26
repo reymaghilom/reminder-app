@@ -22,14 +22,14 @@ export default function DayDetailsScreen() {
   const [items, setItems] = useState<ReminderWithStatus[]>([]);
   const load = useCallback(async () => {
     const [reminders, intakes, occurrences] = await Promise.all([
-      listReminders(),
+      listReminders({ includeArchived: true }),
       listIntakesForDate(date),
       listReminderOccurrencesForDate(date),
     ]);
     setItems(combineReminders(reminders, intakes, occurrences, date, settings));
   }, [date, settings]);
   useEffect(() => { void load(); }, [load]);
-  const completed = items.filter((item) => item.status === 'taken').length;
+  const completed = items.filter((item) => item.enabled && item.status === 'taken').length;
   const expected = items.filter((item) => item.enabled).length;
   const future = date > dateKey();
   return <Screen contentStyle={styles.content}><AppHeader title="Day Details" back />

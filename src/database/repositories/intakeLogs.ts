@@ -5,14 +5,15 @@ import { scheduledDateTime } from '@/utils/time';
 type IntakeRow = {
   id: number; reminder_id: number; scheduled_date: string; taken_at: string; status: 'taken';
   vitamin_name_snapshot: string; dose_label_snapshot: string; meal_period_snapshot: Reminder['mealPeriod'];
-  scheduled_time_snapshot: string; created_at: string;
+  custom_schedule_label_snapshot: string; scheduled_time_snapshot: string; created_at: string;
 };
 
 function mapIntake(row: IntakeRow): IntakeLog {
   return {
     id: row.id, reminderId: row.reminder_id, scheduledDate: row.scheduled_date, takenAt: row.taken_at,
     status: row.status, vitaminNameSnapshot: row.vitamin_name_snapshot, doseLabelSnapshot: row.dose_label_snapshot,
-    mealPeriodSnapshot: row.meal_period_snapshot, scheduledTimeSnapshot: row.scheduled_time_snapshot, createdAt: row.created_at,
+    mealPeriodSnapshot: row.meal_period_snapshot, customScheduleLabelSnapshot: row.custom_schedule_label_snapshot,
+    scheduledTimeSnapshot: row.scheduled_time_snapshot, createdAt: row.created_at,
   };
 }
 
@@ -23,9 +24,11 @@ export async function markReminderTaken(reminder: Reminder, scheduledDate: strin
   const now = new Date().toISOString();
   const result = await db.runAsync(
     `INSERT OR IGNORE INTO intake_logs
-     (reminder_id, scheduled_date, taken_at, status, vitamin_name_snapshot, dose_label_snapshot, meal_period_snapshot, scheduled_time_snapshot, created_at)
-     VALUES (?, ?, ?, 'taken', ?, ?, ?, ?, ?)`,
-    reminder.id, scheduledDate, now, reminder.vitaminName, reminder.doseLabel, reminder.mealPeriod, reminder.scheduledTime, now,
+     (reminder_id, scheduled_date, taken_at, status, vitamin_name_snapshot, dose_label_snapshot,
+      meal_period_snapshot, custom_schedule_label_snapshot, scheduled_time_snapshot, created_at)
+     VALUES (?, ?, ?, 'taken', ?, ?, ?, ?, ?, ?)`,
+    reminder.id, scheduledDate, now, reminder.vitaminName, reminder.doseLabel, reminder.mealPeriod,
+    reminder.customScheduleLabel, reminder.scheduledTime, now,
   );
   const row = await db.getFirstAsync<IntakeRow>('SELECT * FROM intake_logs WHERE reminder_id = ? AND scheduled_date = ?', reminder.id, scheduledDate);
   if (!row) throw new Error('Unable to save intake');

@@ -7,15 +7,16 @@ import { AppHeader } from '@/components/AppHeader';
 import { VitaminIcon } from '@/components/VitaminIcon';
 import { StatusBadge } from '@/components/StatusBadge';
 import { listIntakesForRange } from '@/database/repositories/intakeLogs';
-import { listReminderOccurrencesForDate } from '@/database/repositories/reminderOccurrences';
+import { listReminderOccurrencesForDate, listReminderOccurrencesForRange } from '@/database/repositories/reminderOccurrences';
 import { listReminders } from '@/database/repositories/reminders';
 import { useTheme } from '@/hooks/useTheme';
-import { IntakeLog, ReminderWithStatus } from '@/types';
+import { IntakeLog, ReminderOccurrence, ReminderWithStatus } from '@/types';
 import { dateKey, formatShortDate } from '@/utils/date';
 import { combineReminders } from '@/utils/reminderStatus';
 import { formatTakenTime, formatTime } from '@/utils/time';
 import { radius, shadows } from '@/constants/theme';
 import { useAppStore } from '@/store/useAppStore';
+import { scheduleLabel } from '@/utils/scheduleLabel';
 
 const week = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
@@ -26,6 +27,7 @@ export default function HistoryScreen() {
   const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [selected, setSelected] = useState(dateKey());
   const [monthIntakes, setMonthIntakes] = useState<IntakeLog[]>([]);
+  const [monthOccurrences, setMonthOccurrences] = useState<ReminderOccurrence[]>([]);
   const [items, setItems] = useState<ReminderWithStatus[]>([]);
   const selectionReveal = useRef(new Animated.Value(1)).current;
   useEffect(() => {
@@ -36,9 +38,12 @@ export default function HistoryScreen() {
   const load = useCallback(async () => {
     const start = dateKey(new Date(month.getFullYear(), month.getMonth(), 1));
     const end = dateKey(new Date(month.getFullYear(), month.getMonth() + 1, 0));
-    const [reminders, intakes, occurrences] = await Promise.all([listReminders(), listIntakesForRange(start, end), listReminderOccurrencesForDate(selected)]);
+    const [reminders, intakes, occurrences, occurrencesInMonth] = await Promise.all([
+      listReminders({ includeArchived: true }), listIntakesForRange(start, end),
+      listReminderOccurrencesForDate(selected), listReminderOccurrencesForRange(start, end),
+    ]);
     const selectedIntakes = intakes.filter((item) => item.scheduledDate === selected);
-    setMonthIntakes(intakes); setItems(combineReminders(reminders, selectedIntakes, occurrences, selected, settings));
+    setMonthIntakes(intakes); setMonthOccurrences(occurrencesInMonth); setItems(combineReminders(reminders, selectedIntakes, occurrences, selected, settings));
   }, [month, selected, settings]);
   useFocusEffect(useCallback(() => { void load(); }, [load]));
   const cells = useMemo(() => {
@@ -50,9 +55,14 @@ export default function HistoryScreen() {
     for (const intake of monthIntakes) counts.set(intake.scheduledDate, (counts.get(intake.scheduledDate) ?? 0) + 1);
     return counts;
   }, [monthIntakes]);
+  const expectedCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const occurrence of monthOccurrences) if (occurrence.enabledSnapshot) counts.set(occurrence.scheduledDate, (counts.get(occurrence.scheduledDate) ?? 0) + 1);
+    return counts;
+  }, [monthOccurrences]);
   const moveMonth = (delta: number) => { const next = new Date(month.getFullYear(), month.getMonth() + delta, 1); setMonth(next); setSelected(dateKey(next)); };
   const expected = items.filter((item) => item.enabled).length;
-  const completed = items.filter((item) => item.status === 'taken').length;
+  const completed = items.filter((item) => item.enabled && item.status === 'taken').length;
   const confirmTakenLater = (item: ReminderWithStatus) => Alert.alert('Mark this dose as taken?', 'The current confirmation time will be recorded. The original scheduled time will remain unchanged.', [
     { text: 'Cancel', style: 'cancel' },
     { text: 'Mark as Taken', onPress: () => void markTaken(item, selected).then(load).catch(() => Alert.alert('Could not save', 'Please try marking this reminder again.')) },
@@ -66,18 +76,19 @@ export default function HistoryScreen() {
         if (!day) return <View key={`blank-${index}`} style={styles.cell} />;
         const key = dateKey(new Date(month.getFullYear(), month.getMonth(), day));
         const taken = intakeCounts.get(key) ?? 0;
+        const expectedForDay = expectedCounts.get(key) ?? 0;
         const past = key < dateKey(); const future = key > dateKey();
-        const color = future ? theme.muted : taken >= 3 ? theme.primary : taken > 0 ? theme.calcium : past ? theme.warning : theme.muted;
+        const color = future || expectedForDay === 0 ? theme.muted : taken >= expectedForDay ? theme.primary : taken > 0 ? theme.partial : past ? theme.warning : theme.muted;
         const active = key === selected;
         return <Pressable accessibilityRole="button" accessibilityState={{ selected: active }} accessibilityLabel={`${key}, ${taken} reminders completed`} key={key} onPress={() => setSelected(key)} style={({ pressed }) => [styles.cell, active && { backgroundColor: theme.primary }, pressed && { transform: [{ scale: 0.94 }] }]}><Text style={[styles.day, { color: active ? theme.white : theme.text }]}>{day}</Text>{!future && <View style={[styles.indicator, { backgroundColor: active ? theme.white : color }]} />}</Pressable>;
       })}</View>
-      <View style={styles.legend}><Legend color={theme.primary} text="Complete" /><Legend color={theme.calcium} text="Partial" /><Legend color={theme.warning} text="Unconfirmed" /><Legend color={theme.muted} text="No data" /></View>
+      <View style={styles.legend}><Legend color={theme.primary} text="Complete" /><Legend color={theme.partial} text="Partial" /><Legend color={theme.warning} text="Unconfirmed" /><Legend color={theme.muted} text="No data" /></View>
     </View>
     <Animated.View style={{ opacity: selectionReveal, transform: [{ translateY: selectionReveal.interpolate({ inputRange: [0, 1], outputRange: [4, 0] }) }] }}>
     <Pressable onPress={() => router.push(`/day/${selected}` as Href)} style={[styles.summaryHead, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}><View><Text style={[styles.summaryDate, { color: theme.text }]}>{formatShortDate(selected)}</Text><Text style={[styles.summaryCount, { color: theme.textSecondary }]}>{completed} of {expected} completed</Text></View><Ionicons name="chevron-forward" size={21} color={theme.muted} /></Pressable>
     <View style={[styles.list, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}>{items.map((item, index) => <View key={item.id} style={[styles.itemContainer, index < items.length - 1 && { borderBottomWidth: 1, borderBottomColor: theme.divider }]}>
-      <View style={styles.item}><VitaminIcon vitaminKey={item.vitaminKey} size={40} /><View style={styles.itemCopy}><Text style={[styles.itemName, { color: theme.text }]}>{item.vitaminName} · {item.doseLabel}</Text><Text style={[styles.itemMeta, { color: theme.textSecondary }]}>Scheduled {formatTime(item.scheduledTime)} · {item.mealPeriod}</Text></View><View style={styles.itemRight}><Text style={[styles.itemTime, { color: theme.textSecondary }]}>{item.intake ? `Confirmed ${formatTakenTime(item.intake.takenAt)}` : 'Not marked as taken'}</Text><StatusBadge status={item.status} /></View></View>
-      {item.status === 'unconfirmed' && item.enabled && selected <= dateKey() && <Pressable accessibilityRole="button" onPress={() => confirmTakenLater(item)} style={({ pressed }) => [styles.markLater, { backgroundColor: theme.calciumSoft, borderColor: theme.warning, opacity: pressed ? 0.72 : 1 }]}><Ionicons name="checkmark-circle-outline" size={17} color={theme.warning} /><Text style={[styles.markLaterText, { color: theme.warning }]}>Mark as Taken Later</Text></Pressable>}
+      <View style={styles.item}><VitaminIcon vitaminKey={item.vitaminKey} size={40} /><View style={styles.itemCopy}><Text style={[styles.itemName, { color: theme.text }]}>{item.vitaminName} · {item.doseLabel}</Text><Text style={[styles.itemMeta, { color: theme.textSecondary }]}>Scheduled {formatTime(item.scheduledTime)} · {scheduleLabel(item.mealPeriod, item.customScheduleLabel)}</Text></View><View style={styles.itemRight}><Text style={[styles.itemTime, { color: theme.textSecondary }]}>{item.intake ? `Confirmed ${formatTakenTime(item.intake.takenAt)}` : 'Not marked as taken'}</Text><StatusBadge status={item.status} /></View></View>
+      {item.status === 'unconfirmed' && item.enabled && selected <= dateKey() && <Pressable accessibilityRole="button" onPress={() => confirmTakenLater(item)} style={({ pressed }) => [styles.markLater, { backgroundColor: theme.warningSoft, borderColor: theme.warning, opacity: pressed ? 0.72 : 1 }]}><Ionicons name="checkmark-circle-outline" size={17} color={theme.warning} /><Text style={[styles.markLaterText, { color: theme.warning }]}>Mark as Taken Later</Text></Pressable>}
     </View>)}</View>
     </Animated.View>
   </Screen>;

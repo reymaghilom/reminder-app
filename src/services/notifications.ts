@@ -16,6 +16,8 @@ import { Reminder } from '@/types';
 import { parseTime } from '@/utils/time';
 
 export const NOTIFICATION_CHANNEL_ID = 'vitamin-reminders';
+const NOTIFICATION_TITLE = 'Reminder';
+const NOTIFICATION_MESSAGE = 'It’s time to take your vitamin/supplement.';
 let configuredVibration: boolean | null = null;
 
 setNotificationHandler({
@@ -27,7 +29,7 @@ export async function configureNotificationChannel(vibration = true): Promise<vo
   if (configuredVibration === vibration) return;
   await setNotificationChannelAsync(NOTIFICATION_CHANNEL_ID, {
     name: 'Vitamin Reminders',
-    description: 'Daily vitamin reminders from MamaCare',
+    description: 'Daily vitamin and supplement reminders from Reminder App',
     importance: AndroidImportance.HIGH,
     sound: 'default',
     vibrationPattern: vibration ? [0, 250, 150, 250] : undefined,
@@ -91,11 +93,10 @@ export async function cancelNotification(identifier: string | null): Promise<voi
 export async function scheduleReminder(reminder: Reminder): Promise<string | null> {
   if (!reminder.enabled) return null;
   const { hour, minute } = parseTime(reminder.scheduledTime);
-  const meal = reminder.mealPeriod === 'Custom' ? 'scheduled' : reminder.mealPeriod.toLowerCase();
   return scheduleNotificationAsync({
     content: {
-      title: `${reminder.vitaminName} Reminder`,
-      body: `It's time for your ${meal} vitamin.`,
+      title: NOTIFICATION_TITLE,
+      body: NOTIFICATION_MESSAGE,
       sound: 'default',
       data: { reminderId: reminder.id, kind: 'daily', scheduleSignature: notificationScheduleSignature(reminder) },
     },
@@ -104,7 +105,7 @@ export async function scheduleReminder(reminder: Reminder): Promise<string | nul
 }
 
 export function notificationScheduleSignature(reminder: Reminder): string {
-  return `${reminder.scheduledTime}|${reminder.mealPeriod}`;
+  return `${reminder.vitaminName}|${reminder.doseLabel}|${reminder.scheduledTime}|${reminder.mealPeriod}|${reminder.customScheduleLabel}`;
 }
 
 export async function scheduleFollowUpNotification(
@@ -114,13 +115,20 @@ export async function scheduleFollowUpNotification(
   maximumReminders: number,
   scheduledAt: Date,
 ): Promise<string> {
-  const final = sequence === maximumReminders;
   return scheduleNotificationAsync({
     content: {
-      title: final ? 'Final Vitamin Reminder' : 'Vitamin Reminder Still Pending',
-      body: `${reminder.vitaminName} ${reminder.doseLabel} ${final ? 'is still not marked as taken' : 'has not been marked as taken yet'}.`,
+      title: NOTIFICATION_TITLE,
+      body: NOTIFICATION_MESSAGE,
       sound: 'default',
-      data: { reminderId: reminder.id, scheduledDate, sequence, maximumReminders, scheduledAt: scheduledAt.toISOString(), kind: 'follow_up' },
+      data: {
+        reminderId: reminder.id,
+        scheduledDate,
+        sequence,
+        maximumReminders,
+        scheduledAt: scheduledAt.toISOString(),
+        scheduleSignature: notificationScheduleSignature(reminder),
+        kind: 'follow_up',
+      },
     },
     trigger: { type: SchedulableTriggerInputTypes.DATE, date: scheduledAt, channelId: NOTIFICATION_CHANNEL_ID },
   });
@@ -129,7 +137,7 @@ export async function scheduleFollowUpNotification(
 export async function sendTestNotification(vibration = true): Promise<void> {
   await configureNotificationChannel(vibration);
   await scheduleNotificationAsync({
-    content: { title: 'MamaCare Test', body: 'Notifications are working correctly.', sound: 'default', data: { kind: 'test' } },
+    content: { title: NOTIFICATION_TITLE, body: NOTIFICATION_MESSAGE, sound: 'default', data: { kind: 'test' } },
     trigger: { type: SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 1, channelId: NOTIFICATION_CHANNEL_ID },
   });
 }

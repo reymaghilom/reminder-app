@@ -1,6 +1,6 @@
-# MamaCare
+# Reminder App
 
-MamaCare is an offline-first Expo application for local vitamin reminders and intake tracking.
+Reminder App is an offline-first Expo application for managing local vitamin and supplement reminders and intake tracking.
 
 ## Run locally
 

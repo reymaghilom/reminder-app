@@ -107,7 +107,8 @@ function matchesDesiredNotification(
     && String(data.scheduledDate) === desired.scheduledDate
     && Number(data.sequence) === desired.sequence
     && Number(data.maximumReminders) === settings.maximumReminders
-    && String(data.scheduledAt) === desired.scheduledAt;
+    && String(data.scheduledAt) === desired.scheduledAt
+    && String(data.scheduleSignature) === notificationScheduleSignature(desired.reminder);
 }
 
 async function synchronizeFollowUps(

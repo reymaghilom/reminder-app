@@ -20,7 +20,7 @@ export function formatShortDate(key: string): string {
 
 export function greeting(now = new Date()): string {
   const hour = now.getHours();
-  if (hour < 12) return 'Good morning, Mama!';
-  if (hour < 18) return 'Good afternoon, Mama!';
-  return 'Good evening, Mama!';
+  if (hour < 12) return 'Good morning!';
+  if (hour < 18) return 'Good afternoon!';
+  return 'Good evening!';
 }

@@ -32,16 +32,16 @@ export default function SettingsScreen() {
   const testNotification = async () => {
     try {
       const granted = await requestNotificationPermission();
-      if (!granted) return Alert.alert('Notifications are off', 'Enable notifications for MamaCare in your device settings, then try again.');
+      if (!granted) return Alert.alert('Notifications are off', 'Enable notifications for Reminder App in your device settings, then try again.');
       await sendTestNotification(settings.vibrationEnabled);
-      Alert.alert('Test sent', 'A MamaCare test notification was sent.');
+      Alert.alert('Test sent', 'A Reminder App test notification was sent.');
     } catch { Alert.alert('Test unavailable', 'The test notification could not be sent on this device.'); }
   };
   const showNotificationSettings = async () => {
     if (isExpoGoEnvironment()) {
       Alert.alert(
         'Notification Sound',
-        "While testing in Expo Go, notification sound is managed by Android's settings for Expo Go. The installed MamaCare app will have its own notification settings.",
+        "While testing in Expo Go, notification sound is managed by Android's settings for Expo Go. The installed Reminder App will have its own notification settings.",
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -58,7 +58,7 @@ export default function SettingsScreen() {
       await configureNotificationChannel(settings.vibrationEnabled);
       await openNotificationSettings();
     } catch {
-      Alert.alert('Settings unavailable', 'Open Android Settings, select Apps, then select MamaCare to change its notification preferences.');
+      Alert.alert('Settings unavailable', 'Open Android Settings, select Apps, then select Reminder App to change its notification preferences.');
     }
   };
   const confirmReset = () => Alert.alert('Reset intake history?', 'This removes taken records only. Your vitamin schedule and settings will stay unchanged.', [
@@ -80,8 +80,8 @@ export default function SettingsScreen() {
     <SectionLabel text="DATA" />
     <View style={[styles.group, shadows.card, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}><SettingRow icon="notifications-outline" label="Test Notification" onPress={() => void testNotification()} /><SettingRow icon="trash-outline" label="Reset Intake History" danger onPress={confirmReset} last /></View>
     <SectionLabel text="ABOUT" />
-    <View style={[styles.group, shadows.card, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}><SettingRow icon="heart-outline" label="About MamaCare" onPress={() => router.push('/about')} /><SettingRow icon="shield-checkmark-outline" label="Disclaimer" onPress={() => router.push('/disclaimer')} last /></View>
-    <View style={styles.version}><Ionicons name="leaf-outline" size={15} color={theme.primary} /><Text style={[styles.versionText, { color: theme.muted }]}>MamaCare 1.0.0</Text></View>
+    <View style={[styles.group, shadows.card, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}><SettingRow icon="information-circle-outline" label="About Reminder App" onPress={() => router.push('/about')} /><SettingRow icon="shield-checkmark-outline" label="Disclaimer" onPress={() => router.push('/disclaimer')} last /></View>
+    <View style={styles.version}><Ionicons name="notifications-outline" size={15} color={theme.primary} /><Text style={[styles.versionText, { color: theme.muted }]}>Reminder App 1.0.0</Text></View>
     <OptionSheet visible={intervalOpen} title="Repeat Interval" options={repeatIntervalOptions} value={settings.repeatIntervalMinutes} suffix=" minutes" onSelect={(value) => void updateSetting('repeatIntervalMinutes', value)} onClose={() => setIntervalOpen(false)} />
     <OptionSheet visible={maximumOpen} title="Maximum Reminders" options={maximumReminderOptions} value={settings.maximumReminders} onSelect={(value) => void updateSetting('maximumReminders', value)} onClose={() => setMaximumOpen(false)} />
   </Screen>;

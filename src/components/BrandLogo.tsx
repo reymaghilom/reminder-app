@@ -1,7 +1,7 @@
 import { Image, ImageStyle, StyleProp } from 'react-native';
 
-const source = require('../../assets/mamacare-logo-official.png');
+const source = require('../../assets/reminder-app-logo.png');
 
 export function BrandLogo({ style }: { style?: StyleProp<ImageStyle> }) {
-  return <Image accessibilityLabel="MamaCare Vitamin Reminder logo" source={source} resizeMode="contain" style={style} />;
+  return <Image accessibilityLabel="Reminder App logo" source={source} resizeMode="contain" style={style} />;
 }
