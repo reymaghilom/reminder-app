@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { getDatabase } from '@/database/database';
+import { resetStoredAppData } from '@/database/repositories/appData';
 import { listIntakesForDate, markReminderTaken as persistTaken } from '@/database/repositories/intakeLogs';
 import { listReminderOccurrencesForDate } from '@/database/repositories/reminderOccurrences';
 import { getSettings, setSetting } from '@/database/repositories/settings';
@@ -15,7 +16,7 @@ import { AppSettings, Reminder, ReminderWithStatus, Vitamin, VitaminInput } from
 import { dateKey } from '@/utils/date';
 import { combineReminders, getReminderStatus } from '@/utils/reminderStatus';
 import { requestNotificationPermission } from '@/services/notifications';
-import { cancelFollowUpsForDose, reconcileReminder, syncAllReminderNotifications } from '@/services/reminderScheduler';
+import { cancelFollowUpsForDose, reconcileReminder, resetReminderNotificationsAndData, syncAllReminderNotifications } from '@/services/reminderScheduler';
 
 const repeatSettingKeys: (keyof AppSettings)[] = ['repeatNotTakenEnabled', 'repeatIntervalMinutes', 'maximumReminders'];
 
@@ -32,6 +33,8 @@ interface AppState {
   settings: AppSettings;
   updatingReminderIds: number[];
   savingVitamin: boolean;
+  resettingAppData: boolean;
+  dataResetVersion: number;
   initialize: () => Promise<void>;
   refresh: () => Promise<void>;
   refreshTodayStatuses: () => void;
@@ -40,12 +43,22 @@ interface AppState {
   toggleReminder: (reminderId: number, enabled: boolean) => Promise<ReminderUpdateResult>;
   saveVitamin: (input: VitaminInput, vitaminId?: number) => Promise<VitaminSaveResult>;
   archiveVitamin: (vitaminId: number) => Promise<{ notificationsSynchronized: boolean }>;
+  resetAppData: () => Promise<void>;
   updateSetting: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => Promise<void>;
 }
 
 let refreshRequest = 0;
 let dataMutationRevision = 0;
 let notificationPermissionGranted = false;
+let initializationPromise: Promise<void> | null = null;
+let notificationSetupPromise: Promise<void> = Promise.resolve();
+let settingUpdateQueue: Promise<void> = Promise.resolve();
+
+function enqueueSettingUpdate(operation: () => Promise<void>): Promise<void> {
+  const queued = settingUpdateQueue.then(operation);
+  settingUpdateQueue = queued.catch(() => undefined);
+  return queued;
+}
 
 function reminderValuesChanged(reminder: Reminder, values: ReminderValues): boolean {
   return reminder.mealPeriod !== values.mealPeriod
@@ -63,27 +76,38 @@ export const useAppStore = create<AppState>((set, get) => ({
   settings: DEFAULT_SETTINGS,
   updatingReminderIds: [],
   savingVitamin: false,
-  initialize: async () => {
-    try {
-      await getDatabase();
-      const settings = await getSettings();
-      let granted = false;
+  resettingAppData: false,
+  dataResetVersion: 0,
+  initialize: () => {
+    if (initializationPromise) return initializationPromise;
+    initializationPromise = (async () => {
       try {
-        granted = await requestNotificationPermission(!settings.notificationPermissionAsked);
-        if (!settings.notificationPermissionAsked) {
-          settings.notificationPermissionAsked = true;
-          await setSetting('notificationPermissionAsked', true);
-        }
-        await syncAllReminderNotifications(settings, granted);
-      } catch (error) { if (__DEV__) console.warn('Notification setup unavailable', error); }
-      notificationPermissionGranted = granted;
-      set({ settings });
-      await get().refresh();
-      set({ ready: true });
-    } catch (error) {
-      if (__DEV__) console.error('Reminder App initialization failed', error);
-      set({ error: 'Reminder App could not finish setting up. Please restart the app.' });
-    }
+        await getDatabase();
+        const settings = await getSettings();
+        set({ settings });
+        await get().refresh();
+        set({ ready: true });
+
+        notificationSetupPromise = (async () => {
+          try {
+            const granted = await requestNotificationPermission(!settings.notificationPermissionAsked);
+            let currentSettings = get().settings;
+            if (!settings.notificationPermissionAsked) {
+              await setSetting('notificationPermissionAsked', true);
+              currentSettings = { ...get().settings, notificationPermissionAsked: true };
+              set({ settings: currentSettings });
+            }
+            notificationPermissionGranted = granted;
+            await syncAllReminderNotifications(currentSettings, granted);
+          } catch (error) { if (__DEV__) console.warn('Notification setup unavailable', error); }
+        })();
+        await notificationSetupPromise;
+      } catch (error) {
+        if (__DEV__) console.error('Reminder App initialization failed', error);
+        set({ error: 'Reminder App could not finish setting up. Please restart the app.' });
+      }
+    })();
+    return initializationPromise;
   },
   refresh: async () => {
     const request = ++refreshRequest;
@@ -218,7 +242,40 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ savingVitamin: false });
     }
   },
-  updateSetting: async (key, value) => {
+  resetAppData: async () => {
+    if (get().resettingAppData) return;
+    if (get().savingVitamin || get().updatingReminderIds.length) throw new Error('APP_DATA_BUSY');
+    set({ resettingAppData: true });
+    try {
+      await Promise.all([notificationSetupPromise, settingUpdateQueue]);
+      const previousSettings = get().settings;
+      let settings: AppSettings;
+      try {
+        settings = await resetReminderNotificationsAndData(resetStoredAppData);
+      } catch (error) {
+        await syncAllReminderNotifications(previousSettings, notificationPermissionGranted).catch((repairError) => {
+          if (__DEV__) console.warn('Notification restoration after reset failure unavailable', repairError);
+        });
+        throw error;
+      }
+
+      dataMutationRevision += 1;
+      refreshRequest += 1;
+      set((state) => ({
+        vitamins: [],
+        reminders: [],
+        todayReminders: [],
+        settings,
+        updatingReminderIds: [],
+        dataResetVersion: state.dataResetVersion + 1,
+        error: null,
+      }));
+    } finally {
+      set({ resettingAppData: false });
+    }
+  },
+  updateSetting: (key, value) => enqueueSettingUpdate(async () => {
+    if (get().resettingAppData) throw new Error('APP_DATA_BUSY');
     const previousValue = get().settings[key];
     set((state) => ({ settings: { ...state.settings, [key]: value } }));
     try {
@@ -236,5 +293,5 @@ export const useAppStore = create<AppState>((set, get) => ({
         if (__DEV__) console.warn('Repeat notification synchronization unavailable', error);
       }
     }
-  },
+  }),
 }));

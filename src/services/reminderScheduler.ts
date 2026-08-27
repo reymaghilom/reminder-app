@@ -12,6 +12,7 @@ import {
 import { AppSettings, Reminder, ScheduledFollowUp } from '@/types';
 import { dateKeysFrom, FOLLOW_UP_HORIZON_DAYS, followUpDateTime } from '@/utils/repeatReminders';
 import {
+  cancelAllReminderNotifications,
   cancelNotification,
   configureNotificationChannel,
   getAllScheduledNotificationsAsync,
@@ -25,9 +26,9 @@ type DesiredFollowUp = Omit<ScheduledFollowUp, 'notificationId'> & { reminder: R
 
 let synchronizationQueue: Promise<void> = Promise.resolve();
 
-function enqueueSynchronization(operation: () => Promise<void>): Promise<void> {
+function enqueueSynchronization<T>(operation: () => Promise<T>): Promise<T> {
   const queued = synchronizationQueue.then(operation);
-  synchronizationQueue = queued.catch(() => undefined);
+  synchronizationQueue = queued.then(() => undefined).catch(() => undefined);
   return queued;
 }
 
@@ -244,6 +245,13 @@ export function syncAllReminderNotifications(settings: AppSettings, permissionGr
   return enqueueSynchronization(() => performFullSynchronization(settings, permissionGranted));
 }
 
+export function resetReminderNotificationsAndData<T>(resetData: () => Promise<T>): Promise<T> {
+  return enqueueSynchronization(async () => {
+    await cancelAllReminderNotifications();
+    return resetData();
+  });
+}
+
 export function reconcileReminder(
   reminderId: number,
   settings: AppSettings,
@@ -252,7 +260,7 @@ export function reconcileReminder(
   return enqueueSynchronization(() => performReminderSynchronization(reminderId, settings, permissionGranted));
 }
 
-export async function cancelFollowUpsForDose(reminderId: number, scheduledDate: string): Promise<void> {
+async function performDoseFollowUpCancellation(reminderId: number, scheduledDate: string): Promise<void> {
   const [persisted, scheduled] = await Promise.all([
     listScheduledFollowUpsForDose(reminderId, scheduledDate),
     getAllScheduledNotificationsAsync(),
@@ -263,4 +271,8 @@ export async function cancelFollowUpsForDose(reminderId: number, scheduledDate: 
   const identifiers = [...new Set([...persisted.map((item) => item.notificationId), ...matching.map((item) => item.identifier)])];
   await Promise.all(identifiers.map(cancelNotification));
   await deleteScheduledFollowUpsForDose(reminderId, scheduledDate);
+}
+
+export function cancelFollowUpsForDose(reminderId: number, scheduledDate: string): Promise<void> {
+  return enqueueSynchronization(() => performDoseFollowUpCancellation(reminderId, scheduledDate));
 }

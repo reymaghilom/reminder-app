@@ -3,7 +3,9 @@ import { finalReminderDateTime } from './repeatReminders';
 import { scheduledDateTime } from './time';
 import { dateKey } from './date';
 
-export function getReminderStatus(reminder: Reminder, intake: IntakeLog | null, day: string, settings: AppSettings, now = new Date()): ReminderStatus {
+type ReminderStatusSettings = Pick<AppSettings, 'repeatNotTakenEnabled' | 'repeatIntervalMinutes' | 'maximumReminders'>;
+
+export function getReminderStatus(reminder: Reminder, intake: IntakeLog | null, day: string, settings: ReminderStatusSettings, now = new Date()): ReminderStatus {
   if (intake) return 'taken';
   if (!reminder.enabled) return 'disabled';
   if (now < scheduledDateTime(day, reminder.scheduledTime)) return 'upcoming';
@@ -15,7 +17,7 @@ export function combineReminders(
   intakes: IntakeLog[],
   occurrences: ReminderOccurrence[],
   day: string,
-  settings: AppSettings,
+  settings: ReminderStatusSettings,
   now = new Date(),
 ): ReminderWithStatus[] {
   const intakeByReminder = new Map(intakes.map((item) => [item.reminderId, item]));

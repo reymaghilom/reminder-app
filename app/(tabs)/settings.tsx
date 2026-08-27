@@ -22,14 +22,18 @@ export default function SettingsScreen() {
   const settings = useAppStore((state) => state.settings);
   const updateSetting = useAppStore((state) => state.updateSetting);
   const refresh = useAppStore((state) => state.refresh);
+  const resetAppData = useAppStore((state) => state.resetAppData);
+  const resettingAppData = useAppStore((state) => state.resettingAppData);
   const [intervalOpen, setIntervalOpen] = useState(false);
   const [maximumOpen, setMaximumOpen] = useState(false);
   const toggle = async <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
+    if (resettingAppData) return;
     await updateSetting(key, value);
     if (settings.vibrationEnabled) await Haptics.selectionAsync();
     if (key === 'vibrationEnabled') await configureNotificationChannel(Boolean(value)).catch(() => undefined);
   };
   const testNotification = async () => {
+    if (resettingAppData) return;
     try {
       const granted = await requestNotificationPermission();
       if (!granted) return Alert.alert('Notifications are off', 'Enable notifications for Reminder App in your device settings, then try again.');
@@ -65,20 +69,39 @@ export default function SettingsScreen() {
     { text: 'Cancel', style: 'cancel' },
     { text: 'Reset', style: 'destructive', onPress: () => void resetIntakeHistory().then(refresh).then(() => Alert.alert('History reset', 'Your intake history has been cleared.')).catch(() => Alert.alert('Could not reset', 'Please try again.')) },
   ]);
+  const performAppDataReset = async () => {
+    try {
+      setIntervalOpen(false);
+      setMaximumOpen(false);
+      await resetAppData();
+      Alert.alert('App data has been reset.');
+    } catch (error) {
+      if (__DEV__) console.warn('App data reset failed', error);
+      Alert.alert('Unable to reset app data', 'The reset could not be completed. Your saved data was not cleared. Please try again.');
+    }
+  };
+  const confirmAppDataReset = () => Alert.alert(
+    'Reset App Data?',
+    'This will permanently remove all vitamins/supplements, reminder schedules, history, and local app data from this device. This action cannot be undone.',
+    [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Reset Data', style: 'destructive', onPress: () => void performAppDataReset() },
+    ],
+  );
   return <Screen contentStyle={styles.content}>
     <AppHeader title="Settings" />
     <SectionLabel text="REMINDERS" />
     <View style={[styles.group, shadows.card, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}>
-      <SettingRow icon="volume-medium-outline" label="Notification Sound" description="Tap to change the notification sound in Android settings." value="Device Default" onPress={() => void showNotificationSettings()} />
-      <SettingRow icon="phone-portrait-outline" label="Vibration" toggle toggleValue={settings.vibrationEnabled} onToggle={(value) => void toggle('vibrationEnabled', value)} />
-      <SettingRow icon="refresh-outline" label="Repeat if Not Taken" description="Send additional reminders until the dose is confirmed." toggle toggleValue={settings.repeatNotTakenEnabled} onToggle={(value) => void toggle('repeatNotTakenEnabled', value)} />
-      <SettingRow icon="timer-outline" label="Repeat Interval" value={`${settings.repeatIntervalMinutes} minutes`} disabled={!settings.repeatNotTakenEnabled} onPress={() => setIntervalOpen(true)} />
-      <SettingRow icon="notifications-outline" label="Maximum Reminders" description="Includes the initial scheduled reminder." value={String(settings.maximumReminders)} disabled={!settings.repeatNotTakenEnabled} onPress={() => setMaximumOpen(true)} last />
+      <SettingRow icon="volume-medium-outline" label="Notification Sound" description="Tap to change the notification sound in Android settings." value="Device Default" disabled={resettingAppData} onPress={() => void showNotificationSettings()} />
+      <SettingRow icon="phone-portrait-outline" label="Vibration" toggle toggleValue={settings.vibrationEnabled} disabled={resettingAppData} onToggle={(value) => void toggle('vibrationEnabled', value)} />
+      <SettingRow icon="refresh-outline" label="Repeat if Not Taken" description="Send additional reminders until the dose is confirmed." toggle toggleValue={settings.repeatNotTakenEnabled} disabled={resettingAppData} onToggle={(value) => void toggle('repeatNotTakenEnabled', value)} />
+      <SettingRow icon="timer-outline" label="Repeat Interval" value={`${settings.repeatIntervalMinutes} minutes`} disabled={resettingAppData || !settings.repeatNotTakenEnabled} onPress={() => setIntervalOpen(true)} />
+      <SettingRow icon="notifications-outline" label="Maximum Reminders" description="Includes the initial scheduled reminder." value={String(settings.maximumReminders)} disabled={resettingAppData || !settings.repeatNotTakenEnabled} onPress={() => setMaximumOpen(true)} last />
     </View>
     <SectionLabel text="APPEARANCE" />
-    <View style={[styles.group, shadows.card, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}><SettingRow icon="moon-outline" label="Dark Mode" toggle toggleValue={settings.darkMode} onToggle={(value) => void toggle('darkMode', value)} last /></View>
-    <SectionLabel text="DATA" />
-    <View style={[styles.group, shadows.card, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}><SettingRow icon="notifications-outline" label="Test Notification" onPress={() => void testNotification()} /><SettingRow icon="trash-outline" label="Reset Intake History" danger onPress={confirmReset} last /></View>
+    <View style={[styles.group, shadows.card, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}><SettingRow icon="moon-outline" label="Dark Mode" toggle toggleValue={settings.darkMode} disabled={resettingAppData} onToggle={(value) => void toggle('darkMode', value)} last /></View>
+    <SectionLabel text="DATA & STORAGE" />
+    <View style={[styles.group, shadows.card, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}><SettingRow icon="notifications-outline" label="Test Notification" disabled={resettingAppData} onPress={() => void testNotification()} /><SettingRow icon="trash-outline" label="Reset Intake History" danger disabled={resettingAppData} onPress={confirmReset} /><SettingRow icon="warning-outline" label="Reset App Data" description="Remove all vitamins, schedules, history, and reminder data from this device." value={resettingAppData ? 'Resetting…' : undefined} danger disabled={resettingAppData} onPress={confirmAppDataReset} last /></View>
     <SectionLabel text="ABOUT" />
     <View style={[styles.group, shadows.card, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}><SettingRow icon="information-circle-outline" label="About Reminder App" onPress={() => router.push('/about')} /><SettingRow icon="shield-checkmark-outline" label="Disclaimer" onPress={() => router.push('/disclaimer')} last /></View>
     <View style={styles.version}><Ionicons name="notifications-outline" size={15} color={theme.primary} /><Text style={[styles.versionText, { color: theme.muted }]}>Reminder App 1.0.0</Text></View>

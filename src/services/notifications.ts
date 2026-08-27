@@ -5,6 +5,7 @@ import * as IntentLauncher from 'expo-intent-launcher';
 // evaluates its push-token auto-registration module, which produces a misleading
 // remote-push error in Expo Go even when the app never requests a push token.
 import cancelScheduledNotificationAsync from 'expo-notifications/build/cancelScheduledNotificationAsync';
+import cancelAllScheduledNotificationsAsync from 'expo-notifications/build/cancelAllScheduledNotificationsAsync';
 import getAllScheduledNotificationsAsync from 'expo-notifications/build/getAllScheduledNotificationsAsync';
 import scheduleNotificationAsync from 'expo-notifications/build/scheduleNotificationAsync';
 import setNotificationChannelAsync from 'expo-notifications/build/setNotificationChannelAsync';
@@ -88,6 +89,10 @@ export async function requestNotificationPermission(allowPrompt = true): Promise
 export async function cancelNotification(identifier: string | null): Promise<void> {
   if (!identifier) return;
   try { await cancelScheduledNotificationAsync(identifier); } catch { /* Already removed by the OS. */ }
+}
+
+export async function cancelAllReminderNotifications(): Promise<void> {
+  await cancelAllScheduledNotificationsAsync();
 }
 
 export async function scheduleReminder(reminder: Reminder): Promise<string | null> {

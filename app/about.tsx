@@ -14,8 +14,8 @@ export default function AboutScreen() {
     <View style={[styles.developer, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}>
       <View style={styles.developerHeading}><View style={[styles.developerIcon, { backgroundColor: theme.primarySoft }]}><Ionicons name="person-outline" size={20} color={theme.primaryStrong} /></View><Text style={[styles.developerLabel, { color: theme.textSecondary }]}>DEVELOPER</Text></View>
       <Text style={[styles.developerName, { color: theme.text }]}>Rey C. Maghilom</Text>
-      <Text style={[styles.developerDescription, { color: theme.textSecondary }]}>Developed by Rey C. Maghilom as a personal tool for organizing daily vitamin and supplement reminders.</Text>
-      <Text style={[styles.careNote, { color: theme.muted }]}>Made with care and attention to everyday wellness.</Text>
+      <Text style={[styles.developerDescription, { color: theme.textSecondary }]}>Developed by Rey C. Maghilom for his pregnant wife as a personal tool to help her stay on track with her daily vitamin and supplement reminders.</Text>
+      <Text style={[styles.careNote, { color: theme.muted }]}>Made with care for my wife and our growing family.</Text>
     </View>
     <Text style={[styles.version, { color: theme.muted }]}>Version 1.0.0</Text>
     <View style={[styles.boundary, { backgroundColor: theme.primarySoft }]}><Ionicons name="shield-checkmark-outline" size={25} color={theme.primaryStrong} /><Text style={[styles.boundaryText, { color: theme.text }]}>Reminder App is a reminder and intake tracking tool. It does not diagnose conditions or recommend treatment.</Text></View>

@@ -12,7 +12,7 @@ export function SettingRow({ icon, label, description, value, onPress, toggle, t
       <View style={[styles.icon, { backgroundColor: danger ? theme.dangerSoft : theme.primarySoft }]}><Ionicons name={icon} size={18} color={danger ? theme.danger : theme.primaryStrong} /></View>
       <View style={styles.copy}><Text style={[styles.label, { color: danger ? theme.danger : theme.text }]}>{label}</Text>{description && <Text style={[styles.description, { color: theme.textSecondary }]}>{description}</Text>}</View>
       {value && <Text style={[styles.value, { color: theme.textSecondary }]} numberOfLines={1}>{value}</Text>}
-      {toggle && <AppSwitch accessibilityLabel={label} value={Boolean(toggleValue)} onValueChange={(next) => onToggle?.(next)} />}
+      {toggle && <AppSwitch accessibilityLabel={label} value={Boolean(toggleValue)} disabled={disabled} onValueChange={(next) => onToggle?.(next)} />}
       {onPress && !toggle && <Ionicons name="chevron-forward" size={18} color={theme.muted} />}
     </Pressable>
   );

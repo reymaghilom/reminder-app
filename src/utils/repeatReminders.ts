@@ -3,6 +3,7 @@ import { dateKey } from './date';
 import { scheduledDateTime } from './time';
 
 export const FOLLOW_UP_HORIZON_DAYS = 14;
+type RepeatReminderSettings = Pick<AppSettings, 'repeatNotTakenEnabled' | 'repeatIntervalMinutes' | 'maximumReminders'>;
 
 export function dateKeysFrom(start: Date, count: number): string[] {
   return Array.from({ length: count }, (_, index) => {
@@ -18,7 +19,7 @@ export function followUpDateTime(reminder: Reminder, scheduledDate: string, sequ
   return date;
 }
 
-export function finalReminderDateTime(reminder: Reminder, scheduledDate: string, settings: AppSettings): Date {
+export function finalReminderDateTime(reminder: Reminder, scheduledDate: string, settings: RepeatReminderSettings): Date {
   const maximum = settings.repeatNotTakenEnabled ? settings.maximumReminders : 1;
   return followUpDateTime(reminder, scheduledDate, maximum, settings.repeatIntervalMinutes);
 }

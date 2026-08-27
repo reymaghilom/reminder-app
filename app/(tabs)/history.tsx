@@ -7,7 +7,7 @@ import { AppHeader } from '@/components/AppHeader';
 import { VitaminIcon } from '@/components/VitaminIcon';
 import { StatusBadge } from '@/components/StatusBadge';
 import { listIntakesForRange } from '@/database/repositories/intakeLogs';
-import { listReminderOccurrencesForDate, listReminderOccurrencesForRange } from '@/database/repositories/reminderOccurrences';
+import { listReminderOccurrencesForRange } from '@/database/repositories/reminderOccurrences';
 import { listReminders } from '@/database/repositories/reminders';
 import { useTheme } from '@/hooks/useTheme';
 import { IntakeLog, ReminderOccurrence, ReminderWithStatus } from '@/types';
@@ -22,29 +22,51 @@ const week = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 export default function HistoryScreen() {
   const { theme, reduceMotion } = useTheme();
-  const settings = useAppStore((state) => state.settings);
+  const repeatNotTakenEnabled = useAppStore((state) => state.settings.repeatNotTakenEnabled);
+  const repeatIntervalMinutes = useAppStore((state) => state.settings.repeatIntervalMinutes);
+  const maximumReminders = useAppStore((state) => state.settings.maximumReminders);
   const markTaken = useAppStore((state) => state.markTaken);
+  const dataResetVersion = useAppStore((state) => state.dataResetVersion);
   const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [selected, setSelected] = useState(dateKey());
   const [monthIntakes, setMonthIntakes] = useState<IntakeLog[]>([]);
   const [monthOccurrences, setMonthOccurrences] = useState<ReminderOccurrence[]>([]);
   const [items, setItems] = useState<ReminderWithStatus[]>([]);
+  const loadRequest = useRef(0);
+  const observedResetVersion = useRef(dataResetVersion);
   const selectionReveal = useRef(new Animated.Value(1)).current;
+  const statusSettings = useMemo(() => ({
+    repeatNotTakenEnabled,
+    repeatIntervalMinutes,
+    maximumReminders,
+  }), [maximumReminders, repeatIntervalMinutes, repeatNotTakenEnabled]);
   useEffect(() => {
     if (reduceMotion) return;
     selectionReveal.setValue(0.35);
     Animated.timing(selectionReveal, { toValue: 1, duration: 180, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
   }, [reduceMotion, selected, selectionReveal]);
   const load = useCallback(async () => {
+    const resetVersion = dataResetVersion;
+    const request = ++loadRequest.current;
     const start = dateKey(new Date(month.getFullYear(), month.getMonth(), 1));
     const end = dateKey(new Date(month.getFullYear(), month.getMonth() + 1, 0));
-    const [reminders, intakes, occurrences, occurrencesInMonth] = await Promise.all([
+    const [reminders, intakes, occurrencesInMonth] = await Promise.all([
       listReminders({ includeArchived: true }), listIntakesForRange(start, end),
-      listReminderOccurrencesForDate(selected), listReminderOccurrencesForRange(start, end),
+      listReminderOccurrencesForRange(start, end),
     ]);
+    if (request !== loadRequest.current || resetVersion !== observedResetVersion.current) return;
     const selectedIntakes = intakes.filter((item) => item.scheduledDate === selected);
-    setMonthIntakes(intakes); setMonthOccurrences(occurrencesInMonth); setItems(combineReminders(reminders, selectedIntakes, occurrences, selected, settings));
-  }, [month, selected, settings]);
+    const selectedOccurrences = occurrencesInMonth.filter((item) => item.scheduledDate === selected);
+    setMonthIntakes(intakes); setMonthOccurrences(occurrencesInMonth); setItems(combineReminders(reminders, selectedIntakes, selectedOccurrences, selected, statusSettings));
+  }, [dataResetVersion, month, selected, statusSettings]);
+  useEffect(() => {
+    if (observedResetVersion.current === dataResetVersion) return;
+    observedResetVersion.current = dataResetVersion;
+    loadRequest.current += 1;
+    setMonthIntakes([]);
+    setMonthOccurrences([]);
+    setItems([]);
+  }, [dataResetVersion]);
   useFocusEffect(useCallback(() => { void load(); }, [load]));
   const cells = useMemo(() => {
     const leading = month.getDay(); const count = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
