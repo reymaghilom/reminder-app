@@ -11,7 +11,7 @@ import { radius, shadows } from '@/constants/theme';
 import { resetIntakeHistory } from '@/database/repositories/intakeLogs';
 import { useTheme } from '@/hooks/useTheme';
 import { configureNotificationChannel, isExpoGoEnvironment, openExpoGoSettings, openNotificationSettings, requestNotificationPermission, sendTestNotification } from '@/services/notifications';
-import { AlarmCapabilities, getAlarmCapabilities, openExactAlarmSettings } from '@/services/nativeAlarm';
+import { AlarmCapabilities, cancelTestAlarm, getAlarmCapabilities, openExactAlarmSettings, scheduleTestAlarm } from '@/services/nativeAlarm';
 import { useAppStore } from '@/store/useAppStore';
 import { AppSettings, MaximumReminders, RepeatIntervalMinutes } from '@/types';
 
@@ -28,6 +28,7 @@ export default function SettingsScreen() {
   const [intervalOpen, setIntervalOpen] = useState(false);
   const [maximumOpen, setMaximumOpen] = useState(false);
   const [alarmCapabilities, setAlarmCapabilities] = useState<AlarmCapabilities | null>(null);
+  const [testAlarmTarget, setTestAlarmTarget] = useState<number | null>(null);
   const refreshAlarmCapabilities = useCallback(async () => {
     if (Platform.OS !== 'android') return;
     try {
@@ -92,6 +93,36 @@ export default function SettingsScreen() {
       Alert.alert('Settings unavailable', 'The Alarms & reminders settings screen could not be opened.');
     }
   };
+  const scheduleNativeAlarmTest = async () => {
+    if (!alarmCapabilities?.canScheduleExactAlarms) {
+      Alert.alert('Exact alarm access required', 'Enable exact alarm access before scheduling the native test alarm.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => void showExactAlarmSettings() },
+      ]);
+      return;
+    }
+    const triggerAtMillis = Date.now() + 60_000;
+    try {
+      const result = await scheduleTestAlarm(triggerAtMillis);
+      if (!result.scheduled) {
+        Alert.alert('Test alarm not scheduled', `Native scheduling refused: ${result.failureReason ?? 'unknown reason'}.`);
+        return;
+      }
+      setTestAlarmTarget(result.triggerAtMillis);
+      Alert.alert('Native test alarm scheduled', `Expected at ${new Date(result.triggerAtMillis).toLocaleTimeString()}.`);
+    } catch {
+      Alert.alert('Test alarm unavailable', 'The native test alarm could not be scheduled.');
+    }
+  };
+  const cancelNativeAlarmTest = async () => {
+    try {
+      const cancelled = await cancelTestAlarm();
+      setTestAlarmTarget(null);
+      Alert.alert(cancelled ? 'Native test alarm cancelled' : 'No native test alarm found');
+    } catch {
+      Alert.alert('Cancellation unavailable', 'The native test alarm could not be cancelled.');
+    }
+  };
   const confirmReset = () => Alert.alert('Reset intake history?', 'This removes taken records only. Your vitamin schedule and settings will stay unchanged.', [
     { text: 'Cancel', style: 'cancel' },
     { text: 'Reset', style: 'destructive', onPress: () => void resetIntakeHistory().then(refresh).then(() => Alert.alert('History reset', 'Your intake history has been cleared.')).catch(() => Alert.alert('Could not reset', 'Please try again.')) },
@@ -126,6 +157,13 @@ export default function SettingsScreen() {
       <SettingRow icon="notifications-outline" label="Maximum Reminders" description="Includes the initial scheduled reminder." value={String(settings.maximumReminders)} disabled={resettingAppData || !settings.repeatNotTakenEnabled} onPress={() => setMaximumOpen(true)} />
       {Platform.OS === 'android' && <SettingRow icon="alarm-outline" label="Exact alarm access" description={alarmCapabilities?.canScheduleExactAlarms ? undefined : 'Required for precise reminder alarms.'} value={alarmCapabilities?.canScheduleExactAlarms ? 'Enabled' : alarmCapabilities ? 'Open Settings' : 'Checking…'} disabled={resettingAppData || !alarmCapabilities} onPress={alarmCapabilities && !alarmCapabilities.canScheduleExactAlarms ? () => void showExactAlarmSettings() : undefined} last />}
     </View>
+    {Platform.OS === 'android' && __DEV__ && <>
+      <SectionLabel text="NATIVE ALARM TEST" />
+      <View style={[styles.group, shadows.card, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}>
+        <SettingRow icon="alarm-outline" label="Schedule test alarm in 1 minute" description="Temporary diagnostic: posts a native test notification." value={testAlarmTarget ? new Date(testAlarmTarget).toLocaleTimeString() : undefined} disabled={resettingAppData} onPress={() => void scheduleNativeAlarmTest()} />
+        <SettingRow icon="close-circle-outline" label="Cancel test alarm" disabled={resettingAppData} onPress={() => void cancelNativeAlarmTest()} last />
+      </View>
+    </>}
     <SectionLabel text="APPEARANCE" />
     <View style={[styles.group, shadows.card, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}><SettingRow icon="moon-outline" label="Dark Mode" toggle toggleValue={settings.darkMode} disabled={resettingAppData} onToggle={(value) => void toggle('darkMode', value)} last /></View>
     <SectionLabel text="DATA & STORAGE" />

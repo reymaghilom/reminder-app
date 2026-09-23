@@ -1,6 +1,7 @@
 package expo.modules.reminderalarm
 
 import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -53,5 +54,76 @@ class ReminderAlarmModule : Module() {
         false
       }
     }
+
+    AsyncFunction("scheduleTestAlarm") { triggerAtMillisValue: Double ->
+      val method = "setAlarmClock"
+      val triggerAtMillis = triggerAtMillisValue.toLong()
+      val context = appContext.reactContext
+        ?: return@AsyncFunction testAlarmResult(false, triggerAtMillis, method, "context_unavailable")
+      val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+        ?: return@AsyncFunction testAlarmResult(false, triggerAtMillis, method, "alarm_manager_unavailable")
+
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+        return@AsyncFunction testAlarmResult(false, triggerAtMillis, method, "unsupported_api")
+      }
+      if (!triggerAtMillisValue.isFinite() || triggerAtMillis <= System.currentTimeMillis()) {
+        return@AsyncFunction testAlarmResult(false, triggerAtMillis, method, "invalid_trigger_time")
+      }
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
+        return@AsyncFunction testAlarmResult(false, triggerAtMillis, method, "exact_alarm_access_required")
+      }
+
+      val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+        ?: return@AsyncFunction testAlarmResult(false, triggerAtMillis, method, "launch_intent_unavailable")
+      val showIntent = PendingIntent.getActivity(
+        context,
+        ReminderAlarmReceiver.TEST_SHOW_REQUEST_CODE,
+        launchIntent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+      )
+      val operation = ReminderAlarmReceiver.getTestAlarmPendingIntent(
+        context,
+        PendingIntent.FLAG_UPDATE_CURRENT,
+        triggerAtMillis,
+      ) ?: return@AsyncFunction testAlarmResult(false, triggerAtMillis, method, "pending_intent_unavailable")
+
+      ReminderAlarmReceiver.getTestAlarmPendingIntent(context, PendingIntent.FLAG_NO_CREATE)?.let {
+        alarmManager.cancel(it)
+      }
+
+      try {
+        alarmManager.setAlarmClock(AlarmManager.AlarmClockInfo(triggerAtMillis, showIntent), operation)
+        testAlarmResult(true, triggerAtMillis, method, null)
+      } catch (_: SecurityException) {
+        operation.cancel()
+        testAlarmResult(false, triggerAtMillis, method, "exact_alarm_access_required")
+      } catch (_: IllegalArgumentException) {
+        operation.cancel()
+        testAlarmResult(false, triggerAtMillis, method, "scheduling_failed")
+      }
+    }
+
+    AsyncFunction("cancelTestAlarm") {
+      val context = appContext.reactContext ?: return@AsyncFunction false
+      val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+        ?: return@AsyncFunction false
+      val operation = ReminderAlarmReceiver.getTestAlarmPendingIntent(context, PendingIntent.FLAG_NO_CREATE)
+        ?: return@AsyncFunction false
+      alarmManager.cancel(operation)
+      operation.cancel()
+      true
+    }
   }
 }
+
+private fun testAlarmResult(
+  scheduled: Boolean,
+  triggerAtMillis: Long,
+  method: String,
+  failureReason: String?,
+): Map<String, Any?> = mapOf(
+  "scheduled" to scheduled,
+  "triggerAtMillis" to triggerAtMillis.toDouble(),
+  "method" to method,
+  "failureReason" to failureReason,
+)

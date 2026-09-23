@@ -1,8 +1,8 @@
 import { Platform } from 'react-native';
-import { getNativeAlarmCapabilities, openNativeExactAlarmSettings } from '../../modules/reminder-alarm/src/ReminderAlarmModule';
-import { AlarmCapabilities } from '../../modules/reminder-alarm/src/ReminderAlarm.types';
+import { cancelNativeTestAlarm, getNativeAlarmCapabilities, openNativeExactAlarmSettings, scheduleNativeTestAlarm } from '../../modules/reminder-alarm/src/ReminderAlarmModule';
+import { AlarmCapabilities, TestAlarmScheduleResult } from '../../modules/reminder-alarm/src/ReminderAlarm.types';
 
-export type { AlarmCapabilities };
+export type { AlarmCapabilities, TestAlarmScheduleResult };
 
 export function getAlarmCapabilities(): Promise<AlarmCapabilities> {
   if (Platform.OS !== 'android') {
@@ -14,4 +14,16 @@ export function getAlarmCapabilities(): Promise<AlarmCapabilities> {
 export function openExactAlarmSettings(): Promise<boolean> {
   if (Platform.OS !== 'android') return Promise.resolve(false);
   return openNativeExactAlarmSettings();
+}
+
+export function scheduleTestAlarm(triggerAtMillis: number): Promise<TestAlarmScheduleResult> {
+  if (Platform.OS !== 'android') {
+    return Promise.resolve({ scheduled: false, triggerAtMillis, method: 'setAlarmClock', failureReason: 'unsupported_platform' });
+  }
+  return scheduleNativeTestAlarm(triggerAtMillis);
+}
+
+export function cancelTestAlarm(): Promise<boolean> {
+  if (Platform.OS !== 'android') return Promise.resolve(false);
+  return cancelNativeTestAlarm();
 }

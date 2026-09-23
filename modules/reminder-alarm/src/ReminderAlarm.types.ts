@@ -4,3 +4,10 @@ export interface AlarmCapabilities {
   exactAlarmSupported: boolean;
   canScheduleExactAlarms: boolean;
 }
+
+export interface TestAlarmScheduleResult {
+  scheduled: boolean;
+  triggerAtMillis: number;
+  method: 'setAlarmClock';
+  failureReason: string | null;
+}
