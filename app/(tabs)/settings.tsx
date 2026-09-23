@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { Alert, AppState, Platform, StyleSheet, Text, View } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Screen } from '@/components/Screen';
@@ -11,6 +11,7 @@ import { radius, shadows } from '@/constants/theme';
 import { resetIntakeHistory } from '@/database/repositories/intakeLogs';
 import { useTheme } from '@/hooks/useTheme';
 import { configureNotificationChannel, isExpoGoEnvironment, openExpoGoSettings, openNotificationSettings, requestNotificationPermission, sendTestNotification } from '@/services/notifications';
+import { AlarmCapabilities, getAlarmCapabilities, openExactAlarmSettings } from '@/services/nativeAlarm';
 import { useAppStore } from '@/store/useAppStore';
 import { AppSettings, MaximumReminders, RepeatIntervalMinutes } from '@/types';
 
@@ -26,6 +27,23 @@ export default function SettingsScreen() {
   const resettingAppData = useAppStore((state) => state.resettingAppData);
   const [intervalOpen, setIntervalOpen] = useState(false);
   const [maximumOpen, setMaximumOpen] = useState(false);
+  const [alarmCapabilities, setAlarmCapabilities] = useState<AlarmCapabilities | null>(null);
+  const refreshAlarmCapabilities = useCallback(async () => {
+    if (Platform.OS !== 'android') return;
+    try {
+      setAlarmCapabilities(await getAlarmCapabilities());
+    } catch {
+      setAlarmCapabilities(null);
+    }
+  }, []);
+  useFocusEffect(useCallback(() => { void refreshAlarmCapabilities(); }, [refreshAlarmCapabilities]));
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void refreshAlarmCapabilities();
+    });
+    return () => subscription.remove();
+  }, [refreshAlarmCapabilities]);
   const toggle = async <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
     if (resettingAppData) return;
     await updateSetting(key, value);
@@ -65,6 +83,15 @@ export default function SettingsScreen() {
       Alert.alert('Settings unavailable', 'Open Android Settings, select Apps, then select Reminder App to change its notification preferences.');
     }
   };
+  const showExactAlarmSettings = async () => {
+    try {
+      if (!await openExactAlarmSettings()) {
+        Alert.alert('Settings unavailable', 'The Alarms & reminders settings screen is not available on this device.');
+      }
+    } catch {
+      Alert.alert('Settings unavailable', 'The Alarms & reminders settings screen could not be opened.');
+    }
+  };
   const confirmReset = () => Alert.alert('Reset intake history?', 'This removes taken records only. Your vitamin schedule and settings will stay unchanged.', [
     { text: 'Cancel', style: 'cancel' },
     { text: 'Reset', style: 'destructive', onPress: () => void resetIntakeHistory().then(refresh).then(() => Alert.alert('History reset', 'Your intake history has been cleared.')).catch(() => Alert.alert('Could not reset', 'Please try again.')) },
@@ -96,7 +123,8 @@ export default function SettingsScreen() {
       <SettingRow icon="phone-portrait-outline" label="Vibration" toggle toggleValue={settings.vibrationEnabled} disabled={resettingAppData} onToggle={(value) => void toggle('vibrationEnabled', value)} />
       <SettingRow icon="refresh-outline" label="Repeat if Not Taken" description="Send additional reminders until the dose is confirmed." toggle toggleValue={settings.repeatNotTakenEnabled} disabled={resettingAppData} onToggle={(value) => void toggle('repeatNotTakenEnabled', value)} />
       <SettingRow icon="timer-outline" label="Repeat Interval" value={`${settings.repeatIntervalMinutes} minutes`} disabled={resettingAppData || !settings.repeatNotTakenEnabled} onPress={() => setIntervalOpen(true)} />
-      <SettingRow icon="notifications-outline" label="Maximum Reminders" description="Includes the initial scheduled reminder." value={String(settings.maximumReminders)} disabled={resettingAppData || !settings.repeatNotTakenEnabled} onPress={() => setMaximumOpen(true)} last />
+      <SettingRow icon="notifications-outline" label="Maximum Reminders" description="Includes the initial scheduled reminder." value={String(settings.maximumReminders)} disabled={resettingAppData || !settings.repeatNotTakenEnabled} onPress={() => setMaximumOpen(true)} />
+      {Platform.OS === 'android' && <SettingRow icon="alarm-outline" label="Exact alarm access" description={alarmCapabilities?.canScheduleExactAlarms ? undefined : 'Required for precise reminder alarms.'} value={alarmCapabilities?.canScheduleExactAlarms ? 'Enabled' : alarmCapabilities ? 'Open Settings' : 'Checking…'} disabled={resettingAppData || !alarmCapabilities} onPress={alarmCapabilities && !alarmCapabilities.canScheduleExactAlarms ? () => void showExactAlarmSettings() : undefined} last />}
     </View>
     <SectionLabel text="APPEARANCE" />
     <View style={[styles.group, shadows.card, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}><SettingRow icon="moon-outline" label="Dark Mode" toggle toggleValue={settings.darkMode} disabled={resettingAppData} onToggle={(value) => void toggle('darkMode', value)} last /></View>
