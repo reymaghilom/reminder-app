@@ -1,6 +1,7 @@
 package expo.modules.reminderalarm
 
 import android.app.AlarmManager
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.ActivityNotFoundException
 import android.content.Context
@@ -161,6 +162,14 @@ class ReminderAlarmModule : Module() {
       val scope = scopeReminderIds.mapTo(HashSet()) { it.toLong() }
       val summary = ProductionAlarmScheduler.synchronize(context, specs, scope, replaceAll)
       synchronizationResult(summary.scheduled, summary.cancelled, invalid + summary.failures, summary.exactAlarmAccess)
+    }
+
+    AsyncFunction("dismissAlarmNotifications") { alarmKeys: List<String> ->
+      val context = appContext.reactContext ?: return@AsyncFunction 0
+      val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+        ?: return@AsyncFunction 0
+      alarmKeys.distinct().forEach { notificationManager.cancel(it, ProductionAlarmReceiver.NOTIFICATION_ID) }
+      alarmKeys.distinct().size
     }
 
     AsyncFunction("getScheduledAlarmRegistry") {

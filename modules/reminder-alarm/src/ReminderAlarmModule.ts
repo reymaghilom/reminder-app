@@ -20,6 +20,7 @@ interface ReminderAlarmNativeModule {
     scopeReminderIds: number[],
     replaceAll: boolean,
   ): Promise<NativeAlarmSynchronizationResult>;
+  dismissAlarmNotifications(alarmKeys: string[]): Promise<number>;
   getScheduledAlarmRegistry(): Promise<NativeAlarmOccurrenceSpec[]>;
   clearNativeAlarmRegistry(): Promise<number>;
 }
@@ -59,6 +60,10 @@ export function synchronizeNativeAlarmOccurrences(
 ): Promise<NativeAlarmSynchronizationResult> {
   return requireNativeModule<ReminderAlarmNativeModule>('ReminderAlarm')
     .synchronizeAlarmOccurrences(specs, scopeReminderIds, replaceAll);
+}
+
+export function dismissNativeAlarmNotifications(alarmKeys: string[]): Promise<number> {
+  return requireNativeModule<ReminderAlarmNativeModule>('ReminderAlarm').dismissAlarmNotifications(alarmKeys);
 }
 
 export function getNativeScheduledAlarmRegistry(): Promise<NativeAlarmOccurrenceSpec[]> {

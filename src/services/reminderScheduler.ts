@@ -16,6 +16,7 @@ import { scheduledDateTime } from '@/utils/time';
 import {
   cancelAlarmOccurrences,
   clearNativeAlarmRegistry,
+  dismissAlarmNotifications,
   isNativeAlarmDeliveryAvailable,
   nativeAlarmKey,
   NativeAlarmOccurrenceKind,
@@ -434,10 +435,12 @@ async function performDoseFollowUpCancellation(reminderId: number, scheduledDate
 
   if (nativeAlarmsSupported()) {
     const sequences = Array.from({ length: MAX_FOLLOW_UP_SEQUENCE - 1 }, (_, index) => index + 2);
-    await cancelAlarmOccurrences([
+    const alarmKeys = [
       nativeAlarmKey(reminderId, scheduledDate, 'daily', 1),
       ...sequences.map((sequence) => nativeAlarmKey(reminderId, scheduledDate, 'follow_up', sequence)),
-    ]);
+    ];
+    await cancelAlarmOccurrences(alarmKeys);
+    await dismissAlarmNotifications(alarmKeys);
   }
 }
 

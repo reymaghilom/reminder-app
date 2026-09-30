@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.graphics.drawable.Icon
 import android.media.AudioAttributes
 import android.media.RingtoneManager
 import android.os.Build
@@ -90,6 +91,19 @@ class ProductionAlarmReceiver : BroadcastReceiver() {
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
       )
     }
+    // Recording the intake is app/SQLite logic, so the action opens the app on a deep link that does it.
+    // (Android 12 blocks broadcast "trampolines" that would start an activity from a notification action.)
+    val takenIntent = Intent(Intent.ACTION_VIEW, markTakenUri(spec)).setPackage(context.packageName)
+    val takenAction = Notification.Action.Builder(
+      Icon.createWithResource(context, context.applicationInfo.icon),
+      "Mark as taken",
+      PendingIntent.getActivity(
+        context,
+        MARK_TAKEN_REQUEST_CODE,
+        takenIntent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+      ),
+    ).build()
     val metadata = Bundle().apply {
       putString(EXTRA_ALARM_KEY, spec.alarmKey)
       putLong(EXTRA_REMINDER_ID, spec.reminderId)
@@ -114,6 +128,7 @@ class ProductionAlarmReceiver : BroadcastReceiver() {
       .setSound(alarmSound)
       .setVibrate(if (spec.vibrate) vibration else null)
       .setExtras(metadata)
+      .addAction(takenAction)
       .apply { if (contentIntent != null) setContentIntent(contentIntent) }
       .build()
 
@@ -123,6 +138,13 @@ class ProductionAlarmReceiver : BroadcastReceiver() {
       Log.w(TAG, "Unable to post production alarm notification", error)
     }
   }
+
+  private fun markTakenUri(spec: AlarmOccurrenceSpec) = android.net.Uri.Builder()
+    .scheme(APP_LINK_SCHEME)
+    .authority("alarm-taken")
+    .appendQueryParameter("reminderId", spec.reminderId.toString())
+    .appendQueryParameter("date", spec.scheduledDate)
+    .build()
 
   private fun intentData(alarmKey: String) = android.net.Uri.Builder()
     .scheme("reminder-alarm")
@@ -134,6 +156,9 @@ class ProductionAlarmReceiver : BroadcastReceiver() {
     const val CHANNEL_ID = "native-reminder-alarms"
     const val NO_VIBRATION_CHANNEL_ID = "native-reminder-alarms-no-vibration"
     const val NOTIFICATION_ID = 920001
+    const val MARK_TAKEN_REQUEST_CODE = 920002
+    /** Matches "scheme" in app.json; handled by app/alarm-taken.tsx. */
+    private const val APP_LINK_SCHEME = "mamacare"
     const val EXTRA_ALARM_KEY = "alarmKey"
     const val EXTRA_REMINDER_ID = "reminderId"
     const val EXTRA_SCHEDULED_DATE = "scheduledDate"

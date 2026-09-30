@@ -4,6 +4,7 @@ import {
   cancelNativeAlarmOccurrences,
   cancelNativeTestAlarm,
   clearNativeAlarmRegistryCache,
+  dismissNativeAlarmNotifications,
   getNativeAlarmCapabilities,
   getNativeScheduledAlarmRegistry,
   openNativeExactAlarmSettings,
@@ -107,6 +108,12 @@ export function cancelAlarmOccurrence(alarmKey: string): Promise<boolean> {
 export function cancelAlarmOccurrences(alarmKeys: string[]): Promise<number> {
   if (Platform.OS !== 'android') return Promise.resolve(0);
   return cancelNativeAlarmOccurrences(alarmKeys);
+}
+
+/** Removes already-delivered alarm notifications (for example once the dose is marked taken). */
+export function dismissAlarmNotifications(alarmKeys: string[]): Promise<number> {
+  if (Platform.OS !== 'android') return Promise.resolve(0);
+  return dismissNativeAlarmNotifications(alarmKeys);
 }
 
 export function getScheduledAlarmRegistry(): Promise<NativeAlarmOccurrenceSpec[]> {
