@@ -163,7 +163,7 @@ object ProductionAlarmScheduler {
       .mapNotNull { dose -> dose.maxByOrNull { it.triggerAtMillis } }
     for (spec in late) {
       try {
-        ProductionAlarmReceiver().postNotification(context, spec)
+        ProductionAlarmReceiver.deliver(context, spec)
         Log.i(TAG, "PRODUCTION_ALARM_LATE alarmKey=${spec.alarmKey} missedByMillis=${now - spec.triggerAtMillis}")
       } catch (error: RuntimeException) {
         Log.w(TAG, "Unable to deliver missed alarm: ${spec.alarmKey}", error)

@@ -17,6 +17,7 @@ import {
   cancelAlarmOccurrences,
   clearNativeAlarmRegistry,
   dismissAlarmNotifications,
+  doseAlarmKeys,
   isNativeAlarmDeliveryAvailable,
   nativeAlarmKey,
   NativeAlarmOccurrenceKind,
@@ -46,7 +47,6 @@ const NATIVE_ALARM_BUDGET = 400;
 const NATIVE_ALARM_MIN_LEAD_MS = 5_000;
 /** Native alarms are one-shot, so the 14-day window is topped up when the app returns to the foreground. */
 const FOREGROUND_RESYNC_INTERVAL_MS = 6 * 60 * 60 * 1000;
-const MAX_FOLLOW_UP_SEQUENCE = 5;
 
 let synchronizationQueue: Promise<void> = Promise.resolve();
 let lastFullSynchronization: { at: number; nativeMode: boolean } | null = null;
@@ -451,11 +451,7 @@ async function performDoseFollowUpCancellation(reminderId: number, scheduledDate
   await deleteScheduledFollowUpsForDose(reminderId, scheduledDate);
 
   if (nativeAlarmsSupported()) {
-    const sequences = Array.from({ length: MAX_FOLLOW_UP_SEQUENCE - 1 }, (_, index) => index + 2);
-    const alarmKeys = [
-      nativeAlarmKey(reminderId, scheduledDate, 'daily', 1),
-      ...sequences.map((sequence) => nativeAlarmKey(reminderId, scheduledDate, 'follow_up', sequence)),
-    ];
+    const alarmKeys = doseAlarmKeys(reminderId, scheduledDate);
     await cancelAlarmOccurrences(alarmKeys);
     await dismissAlarmNotifications(alarmKeys);
   }

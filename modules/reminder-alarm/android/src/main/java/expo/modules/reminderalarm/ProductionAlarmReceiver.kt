@@ -32,7 +32,7 @@ class ProductionAlarmReceiver : BroadcastReceiver() {
     )
 
     try {
-      postNotification(context, spec)
+      deliver(context, spec)
     } finally {
       NativeAlarmRegistry.remove(context, alarmKey)
       ProductionAlarmScheduler.pendingIntent(context, spec, PendingIntent.FLAG_NO_CREATE)?.cancel()
@@ -44,17 +44,33 @@ class ProductionAlarmReceiver : BroadcastReceiver() {
     }
   }
 
-  /** Also used by restoration to deliver a recently missed alarm late; it has no receiver state. */
-  internal fun postNotification(context: Context, spec: AlarmOccurrenceSpec) {
+  /**
+   * Posts the per-occurrence notification. Normally used [quiet] (after ringing stops without the dose
+   * being taken); the sounding variant is only the fallback when the ringing service cannot start.
+   */
+  internal fun postNotification(context: Context, spec: AlarmOccurrenceSpec, quiet: Boolean = false) {
     val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
       ?: return
     val alarmSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
       ?: Settings.System.DEFAULT_NOTIFICATION_URI
     val vibration = longArrayOf(0, 500, 250, 500, 250, 750)
     // Channel vibration cannot change after creation, so the app's vibration setting selects a channel.
-    val channelId = if (spec.vibrate) CHANNEL_ID else NO_VIBRATION_CHANNEL_ID
+    val channelId = when {
+      quiet -> QUIET_CHANNEL_ID
+      spec.vibrate -> CHANNEL_ID
+      else -> NO_VIBRATION_CHANNEL_ID
+    }
 
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+    if (quiet && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      notificationManager.createNotificationChannel(
+        NotificationChannel(QUIET_CHANNEL_ID, "Missed reminder alarms", NotificationManager.IMPORTANCE_DEFAULT).apply {
+          description = "Reminders that rang but were not marked as taken"
+          lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+          setSound(null, null)
+          enableVibration(false)
+        },
+      )
+    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       notificationManager.createNotificationChannel(
         NotificationChannel(
           channelId,
@@ -91,18 +107,10 @@ class ProductionAlarmReceiver : BroadcastReceiver() {
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
       )
     }
-    // Recording the intake is app/SQLite logic, so the action opens the app on a deep link that does it.
-    // (Android 12 blocks broadcast "trampolines" that would start an activity from a notification action.)
-    val takenIntent = Intent(Intent.ACTION_VIEW, markTakenUri(spec)).setPackage(context.packageName)
     val takenAction = Notification.Action.Builder(
       Icon.createWithResource(context, context.applicationInfo.icon),
       "Mark as taken",
-      PendingIntent.getActivity(
-        context,
-        MARK_TAKEN_REQUEST_CODE,
-        takenIntent,
-        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-      ),
+      markTakenPendingIntent(context, spec),
     ).build()
     val metadata = Bundle().apply {
       putString(EXTRA_ALARM_KEY, spec.alarmKey)
@@ -121,19 +129,22 @@ class ProductionAlarmReceiver : BroadcastReceiver() {
       .setSmallIcon(context.applicationInfo.icon)
       .setContentTitle(spec.title)
       .setContentText(spec.body)
-      .setCategory(Notification.CATEGORY_ALARM)
-      .setPriority(Notification.PRIORITY_HIGH)
+      .setCategory(if (quiet) Notification.CATEGORY_REMINDER else Notification.CATEGORY_ALARM)
+      .setPriority(if (quiet) Notification.PRIORITY_DEFAULT else Notification.PRIORITY_HIGH)
       .setVisibility(Notification.VISIBILITY_PUBLIC)
       .setAutoCancel(true)
-      .setSound(alarmSound)
-      .setVibrate(if (spec.vibrate) vibration else null)
+      .apply {
+        if (!quiet) {
+          setSound(alarmSound)
+          setVibrate(if (spec.vibrate) vibration else null)
+        }
+      }
       .setExtras(metadata)
       .addAction(takenAction)
       .apply { if (contentIntent != null) setContentIntent(contentIntent) }
       .build()
-      // Loop the alarm tone (and vibration) until the user opens the shade, taps, or dismisses it,
-      // like an alarm clock; a single play of a short tone is easy to miss.
-      .apply { flags = flags or Notification.FLAG_INSISTENT }
+      // Fallback only: loop the tone until the user responds, since the ringing service is unavailable.
+      .apply { if (!quiet) flags = flags or Notification.FLAG_INSISTENT }
 
     try {
       notificationManager.notify(spec.alarmKey, NOTIFICATION_ID, notification)
@@ -141,13 +152,6 @@ class ProductionAlarmReceiver : BroadcastReceiver() {
       Log.w(TAG, "Unable to post production alarm notification", error)
     }
   }
-
-  private fun markTakenUri(spec: AlarmOccurrenceSpec) = android.net.Uri.Builder()
-    .scheme(APP_LINK_SCHEME)
-    .authority("alarm-taken")
-    .appendQueryParameter("reminderId", spec.reminderId.toString())
-    .appendQueryParameter("date", spec.scheduledDate)
-    .build()
 
   private fun intentData(alarmKey: String) = android.net.Uri.Builder()
     .scheme("reminder-alarm")
@@ -158,6 +162,38 @@ class ProductionAlarmReceiver : BroadcastReceiver() {
   companion object {
     const val CHANNEL_ID = "native-reminder-alarms"
     const val NO_VIBRATION_CHANNEL_ID = "native-reminder-alarms-no-vibration"
+    const val QUIET_CHANNEL_ID = "reminder-alarm-missed"
+
+    /** Rings the alarm like an alarm clock; falls back to a looping notification if the service cannot start. */
+    fun deliver(context: Context, spec: AlarmOccurrenceSpec) {
+      if (!AlarmRingingService.start(context, spec)) ProductionAlarmReceiver().postNotification(context, spec)
+    }
+
+    /** Leaves a silent notification (with Mark as taken) for an alarm that stopped ringing without being taken. */
+    fun postQuietNotification(context: Context, spec: AlarmOccurrenceSpec) {
+      ProductionAlarmReceiver().postNotification(context, spec, quiet = true)
+    }
+
+    /**
+     * Recording the intake is app/SQLite logic, so "Mark as taken" opens the app on a deep link that does it.
+     * (Android 12 blocks broadcast "trampolines" that would start an activity from a notification action.)
+     */
+    fun markTakenPendingIntent(context: Context, spec: AlarmOccurrenceSpec): PendingIntent = PendingIntent.getActivity(
+      context,
+      MARK_TAKEN_REQUEST_CODE,
+      markTakenIntent(context, spec),
+      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+
+    fun markTakenIntent(context: Context, spec: AlarmOccurrenceSpec): Intent =
+      Intent(Intent.ACTION_VIEW, markTakenUri(spec)).setPackage(context.packageName)
+
+    private fun markTakenUri(spec: AlarmOccurrenceSpec) = android.net.Uri.Builder()
+      .scheme(APP_LINK_SCHEME)
+      .authority("alarm-taken")
+      .appendQueryParameter("reminderId", spec.reminderId.toString())
+      .appendQueryParameter("date", spec.scheduledDate)
+      .build()
     const val NOTIFICATION_ID = 920001
     const val MARK_TAKEN_REQUEST_CODE = 920002
     /** Matches "scheme" in app.json; handled by app/alarm-taken.tsx. */

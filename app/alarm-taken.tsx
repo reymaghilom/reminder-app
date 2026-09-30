@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LoadingView } from '@/components/LoadingView';
+import { dismissAlarmNotifications, doseAlarmKeys } from '@/services/nativeAlarm';
 import { useAppStore } from '@/store/useAppStore';
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -20,6 +21,11 @@ export default function AlarmTakenScreen() {
     if (handled.current) return;
     handled.current = true;
     void (async () => {
+      // Pressing the button is a response to the alarm, so stop it ringing even if the dose
+      // cannot be recorded (not due yet, turned off, or removed).
+      if (Platform.OS === 'android' && reminderId && date) {
+        await dismissAlarmNotifications(doseAlarmKeys(Number(reminderId), date)).catch(() => 0);
+      }
       const reminder = useAppStore.getState().reminders.find((item) => item.id === Number(reminderId));
       let title: string;
       let message: string;

@@ -169,6 +169,8 @@ class ReminderAlarmModule : Module() {
       val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
         ?: return@AsyncFunction 0
       alarmKeys.distinct().forEach { notificationManager.cancel(it, ProductionAlarmReceiver.NOTIFICATION_ID) }
+      // The dose was handled in the app (e.g. marked taken), so stop any of its alarms that are still ringing.
+      AlarmRingingService.stopKeys(alarmKeys.distinct(), markedTaken = true)
       alarmKeys.distinct().size
     }
 
@@ -182,6 +184,7 @@ class ReminderAlarmModule : Module() {
       val entries = NativeAlarmRegistry.all(context)
       entries.forEach { ProductionAlarmScheduler.cancel(context, it.alarmKey) }
       NativeAlarmRegistry.clear(context)
+      AlarmRingingService.stopAll()
       entries.size
     }
   }

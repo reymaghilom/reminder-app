@@ -42,6 +42,18 @@ export function nativeAlarmKey(
     : `reminder:${reminderId}:${scheduledDate}:followup:${sequence}`;
 }
 
+/** Longest follow-up sequence a dose can have (MaximumReminders). */
+const MAX_DOSE_SEQUENCE = 5;
+
+/** Every native alarm key that one dose (reminder + date) can have: the daily alarm and all follow-ups. */
+export function doseAlarmKeys(reminderId: number, scheduledDate: string): string[] {
+  const followUps = Array.from({ length: MAX_DOSE_SEQUENCE - 1 }, (_, index) => index + 2);
+  return [
+    nativeAlarmKey(reminderId, scheduledDate, 'daily', 1),
+    ...followUps.map((sequence) => nativeAlarmKey(reminderId, scheduledDate, 'follow_up', sequence)),
+  ];
+}
+
 /** True when real reminders should be delivered as native alarm-clock alarms instead of Expo notifications. */
 export async function isNativeAlarmDeliveryAvailable(): Promise<boolean> {
   if (Platform.OS !== 'android') return false;
