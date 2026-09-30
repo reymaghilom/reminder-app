@@ -19,6 +19,9 @@ object ProductionAlarmScheduler {
   /** Must match FOLLOW_UP_HORIZON_DAYS in src/utils/repeatReminders.ts (the window TypeScript keeps scheduled). */
   private const val ROLL_FORWARD_DAYS = 14
 
+  /** Alarms missed by less than this (e.g. during a slow boot) still ring on restore; older ones are dropped. */
+  private const val MISSED_ALARM_GRACE_MILLIS = 2 * 60 * 60 * 1000L
+
   /**
    * Keeps a daily reminder going while the app is not opened: when a daily occurrence fires, the same
    * reminder is armed again [ROLL_FORWARD_DAYS] later at the same local wall-clock time. This mirrors
@@ -121,24 +124,38 @@ object ProductionAlarmScheduler {
   fun restoreRegistered(context: Context, reason: String): RestorationSummary = synchronized(NativeAlarmRegistry.lock) {
     val entries = NativeAlarmRegistry.all(context)
     val now = System.currentTimeMillis()
+    val (past, future) = entries.partition { it.triggerAtMillis <= now }
     var restored = 0
-    var removedPast = 0
     var failed = 0
 
-    for (spec in entries) {
-      if (spec.triggerAtMillis <= now) {
-        cancelLocked(context, spec.alarmKey, removeFromRegistry = true)
-        removedPast += 1
-        continue
+    past.forEach { cancelLocked(context, it.alarmKey, removeFromRegistry = true) }
+    // One late alert per dose, even if its daily alarm and several follow-ups were all missed.
+    val late = past
+      .filter { now - it.triggerAtMillis <= MISSED_ALARM_GRACE_MILLIS }
+      .groupBy { it.reminderId to it.scheduledDate }
+      .values
+      .mapNotNull { dose -> dose.maxByOrNull { it.triggerAtMillis } }
+    for (spec in late) {
+      try {
+        ProductionAlarmReceiver().postNotification(context, spec)
+        Log.i(TAG, "PRODUCTION_ALARM_LATE alarmKey=${spec.alarmKey} missedByMillis=${now - spec.triggerAtMillis}")
+      } catch (error: RuntimeException) {
+        Log.w(TAG, "Unable to deliver missed alarm: ${spec.alarmKey}", error)
       }
+    }
+    // Keep each daily chain going even when the missed occurrence itself is too old to ring.
+    past.filter { it.kind == AlarmOccurrenceSpec.KIND_DAILY }.forEach { rollDailyForward(context, it) }
+
+    for (spec in future) {
       val outcome = scheduleLocked(context, spec, persistAfterSuccess = false)
       if (outcome.scheduled) restored += 1 else failed += 1
     }
-    val summary = RestorationSummary(entries.size, restored, removedPast, failed)
+    val summary = RestorationSummary(entries.size, restored, past.size, late.size, failed)
     Log.i(
       TAG,
       "PRODUCTION_ALARM_RESTORE reason=$reason registry=${summary.registryCount} " +
-        "restored=${summary.restored} removedPast=${summary.removedPast} failed=${summary.failed}",
+        "restored=${summary.restored} removedPast=${summary.removedPast} deliveredLate=${summary.deliveredLate} " +
+        "failed=${summary.failed}",
     )
     summary
   }
@@ -278,5 +295,6 @@ data class RestorationSummary(
   val registryCount: Int,
   val restored: Int,
   val removedPast: Int,
+  val deliveredLate: Int,
   val failed: Int,
 )

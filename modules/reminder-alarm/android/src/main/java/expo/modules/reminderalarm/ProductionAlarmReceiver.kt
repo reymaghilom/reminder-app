@@ -43,7 +43,8 @@ class ProductionAlarmReceiver : BroadcastReceiver() {
     }
   }
 
-  private fun postNotification(context: Context, spec: AlarmOccurrenceSpec) {
+  /** Also used by restoration to deliver a recently missed alarm late; it has no receiver state. */
+  internal fun postNotification(context: Context, spec: AlarmOccurrenceSpec) {
     val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
       ?: return
     val alarmSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
