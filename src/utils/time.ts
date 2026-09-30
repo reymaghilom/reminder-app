@@ -26,6 +26,18 @@ export function scheduledDateTime(date: string, time: string): Date {
   return new Date(year, month - 1, day, hour, minute);
 }
 
+/**
+ * Local wall-clock "yyyy-MM-ddTHH:mm" for a scheduled date and time plus an offset, computed without the
+ * device timezone (UTC is used only as a calendar), so it matches scheduledDateTime() + offset in any zone.
+ */
+export function localWallClock(date: string, time: string, offsetMinutes = 0): string {
+  const [year, month, day] = date.split('-').map(Number);
+  const { hour, minute } = parseTime(time);
+  const value = new Date(Date.UTC(year, month - 1, day, hour, minute + offsetMinutes));
+  const pad = (part: number) => String(part).padStart(2, '0');
+  return `${value.getUTCFullYear()}-${pad(value.getUTCMonth() + 1)}-${pad(value.getUTCDate())}T${pad(value.getUTCHours())}:${pad(value.getUTCMinutes())}`;
+}
+
 export function formatTakenTime(iso: string): string {
   return new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }

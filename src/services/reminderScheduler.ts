@@ -12,7 +12,7 @@ import {
 import { Platform } from 'react-native';
 import { AppSettings, Reminder, ScheduledFollowUp } from '@/types';
 import { dateKeysFrom, FOLLOW_UP_HORIZON_DAYS, followUpDateTime } from '@/utils/repeatReminders';
-import { scheduledDateTime } from '@/utils/time';
+import { localWallClock, scheduledDateTime } from '@/utils/time';
 import {
   cancelAlarmOccurrences,
   clearNativeAlarmRegistry,
@@ -221,7 +221,14 @@ function calculateDesiredNativeAlarms(
 ): NativeAlarmOccurrenceSpec[] {
   const earliest = now.getTime() + NATIVE_ALARM_MIN_LEAD_MS;
   const specs: NativeAlarmOccurrenceSpec[] = [];
-  const add = (reminderId: number, scheduledDate: string, kind: NativeAlarmOccurrenceKind, sequence: number, at: Date) => {
+  const add = (
+    reminderId: number,
+    scheduledDate: string,
+    kind: NativeAlarmOccurrenceKind,
+    sequence: number,
+    at: Date,
+    localDateTime: string,
+  ) => {
     if (at.getTime() <= earliest) return;
     specs.push({
       alarmKey: nativeAlarmKey(reminderId, scheduledDate, kind, sequence),
@@ -233,17 +240,27 @@ function calculateDesiredNativeAlarms(
       title: NOTIFICATION_TITLE,
       body: NOTIFICATION_MESSAGE,
       vibrate: settings.vibrationEnabled,
+      localDateTime,
     });
   };
 
   for (const reminder of reminders.filter((item) => item.enabled)) {
     for (const scheduledDate of dates) {
       if (takenDoses.has(`${reminder.id}:${scheduledDate}`)) continue;
-      add(reminder.id, scheduledDate, 'daily', 1, scheduledDateTime(scheduledDate, reminder.scheduledTime));
+      add(
+        reminder.id, scheduledDate, 'daily', 1,
+        scheduledDateTime(scheduledDate, reminder.scheduledTime),
+        localWallClock(scheduledDate, reminder.scheduledTime),
+      );
     }
   }
   for (const item of calculateDesiredFollowUps(reminders, settings, dates, takenDoses, now).values()) {
-    add(item.reminderId, item.scheduledDate, 'follow_up', item.sequence, new Date(item.scheduledAt));
+    add(
+      item.reminderId, item.scheduledDate, 'follow_up', item.sequence,
+      new Date(item.scheduledAt),
+      // Same offset as followUpDateTime(): (sequence - 1) repeat intervals after the scheduled time.
+      localWallClock(item.scheduledDate, item.reminder.scheduledTime, (item.sequence - 1) * settings.repeatIntervalMinutes),
+    );
   }
   return specs.sort((a, b) => a.triggerAtMillis - b.triggerAtMillis).slice(0, NATIVE_ALARM_BUDGET);
 }

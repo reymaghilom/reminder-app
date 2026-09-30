@@ -3,6 +3,7 @@ package expo.modules.reminderalarm
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Locale
+import java.util.TimeZone
 
 /**
  * Derived scheduling/delivery state supplied by TypeScript.
@@ -20,18 +21,25 @@ data class AlarmOccurrenceSpec(
   val title: String,
   val body: String,
   val vibrate: Boolean = true,
+  /**
+   * Intended local wall-clock time ("yyyy-MM-ddTHH:mm"). When present, [triggerAtMillis] is derived from
+   * it in the device timezone, so the alarm keeps its local time when the timezone changes. Null for
+   * entries saved before this field existed; those keep their absolute trigger.
+   */
+  val localDateTime: String? = null,
 ) {
-  fun toMap(): Map<String, Any> = mapOf(
-    "alarmKey" to alarmKey,
-    "reminderId" to reminderId.toDouble(),
-    "scheduledDate" to scheduledDate,
-    "kind" to kind,
-    "sequence" to sequence,
-    "triggerAtMillis" to triggerAtMillis.toDouble(),
-    "title" to title,
-    "body" to body,
-    "vibrate" to vibrate,
-  )
+  fun toMap(): Map<String, Any> = buildMap {
+    put("alarmKey", alarmKey)
+    put("reminderId", reminderId.toDouble())
+    put("scheduledDate", scheduledDate)
+    put("kind", kind)
+    put("sequence", sequence)
+    put("triggerAtMillis", triggerAtMillis.toDouble())
+    put("title", title)
+    put("body", body)
+    put("vibrate", vibrate)
+    localDateTime?.let { put("localDateTime", it) }
+  }
 
   fun toJson(): JSONObject = JSONObject()
     .put("alarmKey", alarmKey)
@@ -43,10 +51,31 @@ data class AlarmOccurrenceSpec(
     .put("title", title)
     .put("body", body)
     .put("vibrate", vibrate)
+    .apply { localDateTime?.let { put("localDateTime", it) } }
+
+  /** Same local wall-clock time interpreted in [zone]; unchanged when there is no local time. */
+  fun inZone(zone: TimeZone): AlarmOccurrenceSpec {
+    val local = localDateTime ?: return this
+    return localToMillis(local, zone)?.let { copy(triggerAtMillis = it) } ?: this
+  }
 
   companion object {
     const val KIND_DAILY = "daily"
     const val KIND_FOLLOW_UP = "follow_up"
+    private val LOCAL_DATE_TIME_PATTERN = Regex("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}")
+
+    fun localToMillis(value: String, zone: TimeZone): Long? {
+      if (!LOCAL_DATE_TIME_PATTERN.matches(value)) return null
+      return try {
+        // Lenient so a time skipped by a DST jump resolves to the following valid instant.
+        SimpleDateFormat("yyyy-MM-dd'T'HH:mm", Locale.US).apply { timeZone = zone }.parse(value)?.time
+      } catch (_: Exception) {
+        null
+      }
+    }
+
+    fun formatLocal(millis: Long, zone: TimeZone): String =
+      SimpleDateFormat("yyyy-MM-dd'T'HH:mm", Locale.US).apply { timeZone = zone }.format(millis)
 
     fun alarmKey(reminderId: Long, scheduledDate: String, kind: String, sequence: Int): String =
       if (kind == KIND_DAILY) {
@@ -60,8 +89,14 @@ data class AlarmOccurrenceSpec(
         ?: return AlarmOccurrenceParseResult(error = "invalid_reminder_id")
       val sequence = numberAsLong(raw["sequence"])?.takeIf { it in 1..Int.MAX_VALUE }?.toInt()
         ?: return AlarmOccurrenceParseResult(error = "invalid_sequence")
-      val triggerAtMillis = numberAsLong(raw["triggerAtMillis"])
-        ?: return AlarmOccurrenceParseResult(error = "invalid_trigger_time")
+      val localDateTime = raw["localDateTime"] as? String
+      val triggerAtMillis = if (localDateTime != null) {
+        localToMillis(localDateTime, TimeZone.getDefault())
+          ?: return AlarmOccurrenceParseResult(error = "invalid_local_date_time")
+      } else {
+        numberAsLong(raw["triggerAtMillis"])
+          ?: return AlarmOccurrenceParseResult(error = "invalid_trigger_time")
+      }
       val spec = AlarmOccurrenceSpec(
         alarmKey = raw["alarmKey"] as? String ?: "",
         reminderId = reminderId,
@@ -72,6 +107,7 @@ data class AlarmOccurrenceSpec(
         title = raw["title"] as? String ?: "",
         body = raw["body"] as? String ?: "",
         vibrate = raw["vibrate"] as? Boolean ?: true,
+        localDateTime = localDateTime,
       )
       return validate(spec, requireFuture = true)
     }
@@ -87,6 +123,7 @@ data class AlarmOccurrenceSpec(
         title = json.getString("title"),
         body = json.getString("body"),
         vibrate = json.optBoolean("vibrate", true),
+        localDateTime = if (json.has("localDateTime")) json.getString("localDateTime") else null,
       )
       validate(spec, requireFuture = false).spec
     } catch (_: Exception) {

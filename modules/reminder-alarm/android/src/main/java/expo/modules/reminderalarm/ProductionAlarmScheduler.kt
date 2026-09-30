@@ -10,6 +10,7 @@ import android.util.Log
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import java.util.TimeZone
 
 object ProductionAlarmScheduler {
   const val PRODUCTION_REQUEST_CODE = 920000
@@ -28,18 +29,28 @@ object ProductionAlarmScheduler {
    * the old repeating Expo daily notification; the next app sync replaces it with SQLite-derived data.
    * Follow-ups are not rolled because they depend on taken state, which only TypeScript knows.
    */
-  fun rollDailyForward(context: Context, fired: AlarmOccurrenceSpec): Unit = synchronized(NativeAlarmRegistry.lock) {
+  fun rollDailyForward(
+    context: Context,
+    fired: AlarmOccurrenceSpec,
+    zone: TimeZone = TimeZone.getDefault(),
+  ): Unit = synchronized(NativeAlarmRegistry.lock) {
     if (fired.kind != AlarmOccurrenceSpec.KIND_DAILY) return
-    val next = Calendar.getInstance().apply {
-      timeInMillis = fired.triggerAtMillis
+    val next = Calendar.getInstance(zone).apply {
+      // Start from the intended local time when known, so a timezone change does not shift the chain.
+      timeInMillis = fired.inZone(zone).triggerAtMillis
       add(Calendar.DAY_OF_MONTH, ROLL_FORWARD_DAYS)
     }
-    val scheduledDate = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(next.time)
+    val scheduledDate = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { timeZone = zone }.format(next.time)
     val alarmKey = AlarmOccurrenceSpec.alarmKey(fired.reminderId, scheduledDate, AlarmOccurrenceSpec.KIND_DAILY, 1)
     if (NativeAlarmRegistry.get(context, alarmKey) != null) return
     val outcome = scheduleLocked(
       context,
-      fired.copy(alarmKey = alarmKey, scheduledDate = scheduledDate, triggerAtMillis = next.timeInMillis),
+      fired.copy(
+        alarmKey = alarmKey,
+        scheduledDate = scheduledDate,
+        triggerAtMillis = next.timeInMillis,
+        localDateTime = fired.localDateTime?.let { AlarmOccurrenceSpec.formatLocal(next.timeInMillis, zone) },
+      ),
       persistAfterSuccess = true,
     )
     Log.i(TAG, "PRODUCTION_ALARM_ROLLED from=${fired.alarmKey} to=$alarmKey scheduled=${outcome.scheduled} reason=${outcome.failureReason}")
@@ -121,8 +132,23 @@ object ProductionAlarmScheduler {
     return found
   }
 
-  fun restoreRegistered(context: Context, reason: String): RestorationSummary = synchronized(NativeAlarmRegistry.lock) {
-    val entries = NativeAlarmRegistry.all(context)
+  /**
+   * Re-arms every registered alarm. Alarms are first moved back to their intended local wall-clock time
+   * in [zone] (the timezone may have changed, even while the phone was off); alarms that then fall in
+   * the past are handled as missed.
+   */
+  fun restoreRegistered(
+    context: Context,
+    reason: String,
+    zone: TimeZone = TimeZone.getDefault(),
+  ): RestorationSummary = synchronized(NativeAlarmRegistry.lock) {
+    val stored = NativeAlarmRegistry.all(context)
+    val entries = stored.map { it.inZone(zone) }
+    val moved = entries.zip(stored).count { (after, before) -> after.triggerAtMillis != before.triggerAtMillis }
+    if (moved > 0) {
+      NativeAlarmRegistry.replaceAll(context, entries)
+      Log.i(TAG, "PRODUCTION_ALARM_RETIMED zone=${zone.id} registry=${stored.size} moved=$moved")
+    }
     val now = System.currentTimeMillis()
     val (past, future) = entries.partition { it.triggerAtMillis <= now }
     var restored = 0
@@ -144,7 +170,7 @@ object ProductionAlarmScheduler {
       }
     }
     // Keep each daily chain going even when the missed occurrence itself is too old to ring.
-    past.filter { it.kind == AlarmOccurrenceSpec.KIND_DAILY }.forEach { rollDailyForward(context, it) }
+    past.filter { it.kind == AlarmOccurrenceSpec.KIND_DAILY }.forEach { rollDailyForward(context, it, zone) }
 
     for (spec in future) {
       val outcome = scheduleLocked(context, spec, persistAfterSuccess = false)

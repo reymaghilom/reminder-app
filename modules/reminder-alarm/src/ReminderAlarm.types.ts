@@ -26,6 +26,11 @@ export interface NativeAlarmOccurrenceSpec {
   body: string;
   /** Defaults to true in Kotlin, which also keeps older registry entries readable. */
   vibrate?: boolean;
+  /**
+   * Intended local wall-clock time, "yyyy-MM-ddTHH:mm". When set, Kotlin derives the trigger from it in
+   * the device timezone and keeps that local time if the timezone changes.
+   */
+  localDateTime?: string;
 }
 
 export interface NativeAlarmSynchronizationResult {
