@@ -9,13 +9,27 @@ import {
   listScheduledFollowUpsForDose,
   listScheduledFollowUpsForReminder,
 } from '@/database/repositories/scheduledFollowUps';
+import { Platform } from 'react-native';
 import { AppSettings, Reminder, ScheduledFollowUp } from '@/types';
 import { dateKeysFrom, FOLLOW_UP_HORIZON_DAYS, followUpDateTime } from '@/utils/repeatReminders';
+import { scheduledDateTime } from '@/utils/time';
+import {
+  cancelAlarmOccurrences,
+  clearNativeAlarmRegistry,
+  isNativeAlarmDeliveryAvailable,
+  nativeAlarmKey,
+  NativeAlarmOccurrenceKind,
+  NativeAlarmOccurrenceSpec,
+  synchronizeAlarmOccurrences,
+} from './nativeAlarm';
 import {
   cancelAllReminderNotifications,
   cancelNotification,
   configureNotificationChannel,
   getAllScheduledNotificationsAsync,
+  isExpoGoEnvironment,
+  NOTIFICATION_MESSAGE,
+  NOTIFICATION_TITLE,
   notificationScheduleSignature,
   scheduleFollowUpNotification,
   scheduleReminder,
@@ -23,8 +37,18 @@ import {
 
 type ScheduledNotification = Awaited<ReturnType<typeof getAllScheduledNotificationsAsync>>[number];
 type DesiredFollowUp = Omit<ScheduledFollowUp, 'notificationId'> & { reminder: Reminder };
+type IntakeRange = Awaited<ReturnType<typeof listIntakesForRange>>;
+
+/** Stays well under Android's 500 concurrent alarms per app; the nearest occurrences win. */
+const NATIVE_ALARM_BUDGET = 400;
+/** Kotlin rejects triggers that are not in the future, so skip anything about to fire. */
+const NATIVE_ALARM_MIN_LEAD_MS = 5_000;
+/** Native alarms are one-shot, so the 14-day window is topped up when the app returns to the foreground. */
+const FOREGROUND_RESYNC_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const MAX_FOLLOW_UP_SEQUENCE = 5;
 
 let synchronizationQueue: Promise<void> = Promise.resolve();
+let lastFullSynchronization: { at: number; nativeMode: boolean } | null = null;
 
 function enqueueSynchronization<T>(operation: () => Promise<T>): Promise<T> {
   const queued = synchronizationQueue.then(operation);
@@ -187,6 +211,96 @@ async function synchronizeFollowUps(
   if (failed?.status === 'rejected') throw failed.reason;
 }
 
+function calculateDesiredNativeAlarms(
+  reminders: Reminder[],
+  settings: AppSettings,
+  dates: string[],
+  takenDoses: Set<string>,
+  now: Date,
+): NativeAlarmOccurrenceSpec[] {
+  const earliest = now.getTime() + NATIVE_ALARM_MIN_LEAD_MS;
+  const specs: NativeAlarmOccurrenceSpec[] = [];
+  const add = (reminderId: number, scheduledDate: string, kind: NativeAlarmOccurrenceKind, sequence: number, at: Date) => {
+    if (at.getTime() <= earliest) return;
+    specs.push({
+      alarmKey: nativeAlarmKey(reminderId, scheduledDate, kind, sequence),
+      reminderId,
+      scheduledDate,
+      kind,
+      sequence,
+      triggerAtMillis: at.getTime(),
+      title: NOTIFICATION_TITLE,
+      body: NOTIFICATION_MESSAGE,
+      vibrate: settings.vibrationEnabled,
+    });
+  };
+
+  for (const reminder of reminders.filter((item) => item.enabled)) {
+    for (const scheduledDate of dates) {
+      if (takenDoses.has(`${reminder.id}:${scheduledDate}`)) continue;
+      add(reminder.id, scheduledDate, 'daily', 1, scheduledDateTime(scheduledDate, reminder.scheduledTime));
+    }
+  }
+  for (const item of calculateDesiredFollowUps(reminders, settings, dates, takenDoses, now).values()) {
+    add(item.reminderId, item.scheduledDate, 'follow_up', item.sequence, new Date(item.scheduledAt));
+  }
+  return specs.sort((a, b) => a.triggerAtMillis - b.triggerAtMillis).slice(0, NATIVE_ALARM_BUDGET);
+}
+
+/** Returns false when exact-alarm access disappeared, so the caller falls back to Expo notifications. */
+async function synchronizeNativeAlarms(
+  reminders: Reminder[],
+  settings: AppSettings,
+  intakes: IntakeRange,
+  dates: string[],
+  now: Date,
+): Promise<boolean> {
+  const startedAt = Date.now();
+  const takenDoses = new Set(intakes.map((item) => `${item.reminderId}:${item.scheduledDate}`));
+  const specs = calculateDesiredNativeAlarms(reminders, settings, dates, takenDoses, now);
+  const result = await synchronizeAlarmOccurrences(specs, [], true);
+  devTiming('native alarm reconciliation', startedAt, {
+    desired: specs.length,
+    scheduled: result.scheduled,
+    cancelled: result.cancelled,
+    failed: result.failures.length,
+  });
+  if (!result.exactAlarmAccess) return false;
+  if (result.failures.length) {
+    throw new Error(`Native alarm synchronization failed: ${result.failures[0].failureReason}`);
+  }
+  return true;
+}
+
+/** Native alarms replace Expo delivery, so remove the Expo copies to avoid duplicate alerts. */
+async function removeExpoReminderDelivery(
+  reminders: Reminder[],
+  scheduled: ScheduledNotification[],
+  rows: ScheduledFollowUp[],
+  globalCleanup: boolean,
+): Promise<void> {
+  const reminderIds = new Set(reminders.map((item) => item.id));
+  const expo = scheduled.filter((item) => {
+    const kind = item.content.data?.kind;
+    if (kind === 'snooze') return globalCleanup;
+    return (kind === 'daily' || kind === 'follow_up')
+      && (globalCleanup || reminderIds.has(Number(item.content.data?.reminderId)));
+  });
+  await Promise.all(expo.map((item) => cancelNotification(item.identifier)));
+  if (rows.length) await applyScheduledFollowUpChanges(rows.map((item) => item.notificationId), []);
+  for (const reminder of reminders) {
+    if (reminder.notificationId) await updateNotificationId(reminder.id, null);
+  }
+}
+
+function nativeAlarmsSupported(): boolean {
+  return Platform.OS === 'android' && !isExpoGoEnvironment();
+}
+
+async function clearNativeReminderAlarms(): Promise<void> {
+  if (nativeAlarmsSupported()) await clearNativeAlarmRegistry();
+}
+
 async function performFullSynchronization(settings: AppSettings, permissionGranted: boolean): Promise<void> {
   const startedAt = Date.now();
   const reminders = await listReminders();
@@ -195,6 +309,7 @@ async function performFullSynchronization(settings: AppSettings, permissionGrant
   await replaceReminderOccurrencesForReminders(reminders, dates);
   if (!permissionGranted) return;
 
+  const nativeMode = await isNativeAlarmDeliveryAvailable();
   await configureNotificationChannel(settings.vibrationEnabled);
   const queryStartedAt = Date.now();
   const scheduled = await getAllScheduledNotificationsAsync();
@@ -203,8 +318,18 @@ async function performFullSynchronization(settings: AppSettings, permissionGrant
     listScheduledFollowUps(),
     listIntakesForRange(dates[0], dates[dates.length - 1]),
   ]);
+
+  if (nativeMode && await synchronizeNativeAlarms(reminders, settings, intakes, dates, now)) {
+    await removeExpoReminderDelivery(reminders, scheduled, rows, true);
+    lastFullSynchronization = { at: Date.now(), nativeMode: true };
+    devTiming('full startup reconciliation (native)', startedAt, { reminders: reminders.length });
+    return;
+  }
+
+  await clearNativeReminderAlarms();
   await synchronizeDailyNotifications(reminders, scheduled);
   await synchronizeFollowUps(reminders, settings, scheduled, rows, intakes, dates, now, true);
+  lastFullSynchronization = { at: Date.now(), nativeMode: false };
   devTiming('full startup reconciliation', startedAt, { reminders: reminders.length });
 }
 
@@ -228,6 +353,13 @@ async function performReminderSynchronization(
     return;
   }
 
+  // Delivery mode is device-wide; if it changed since the last full pass, every reminder must move over.
+  const nativeMode = await isNativeAlarmDeliveryAvailable();
+  if (!lastFullSynchronization || lastFullSynchronization.nativeMode !== nativeMode) {
+    await performFullSynchronization(settings, permissionGranted);
+    return;
+  }
+
   await configureNotificationChannel(settings.vibrationEnabled);
   const queryStartedAt = Date.now();
   const scheduled = await getAllScheduledNotificationsAsync();
@@ -236,6 +368,22 @@ async function performReminderSynchronization(
     listScheduledFollowUpsForReminder(reminder.id),
     listIntakesForReminderRange(reminder.id, dates[0], dates[dates.length - 1]),
   ]);
+
+  if (nativeMode) {
+    // The alarm budget is shared by all reminders, so native alarms are always derived as a whole.
+    const [allReminders, allIntakes] = await Promise.all([
+      listReminders(),
+      listIntakesForRange(dates[0], dates[dates.length - 1]),
+    ]);
+    if (await synchronizeNativeAlarms(allReminders, settings, allIntakes, dates, now)) {
+      await removeExpoReminderDelivery([reminder], scheduled, rows, false);
+      devTiming('targeted reminder reconciliation (native)', startedAt, { reminderId });
+      return;
+    }
+    await performFullSynchronization(settings, permissionGranted);
+    return;
+  }
+
   await synchronizeDailyReminder(reminder, scheduled);
   await synchronizeFollowUps([reminder], settings, scheduled, rows, intakes, dates, now, false);
   devTiming('targeted reminder reconciliation', startedAt, { reminderId });
@@ -248,7 +396,19 @@ export function syncAllReminderNotifications(settings: AppSettings, permissionGr
 export function resetReminderNotificationsAndData<T>(resetData: () => Promise<T>): Promise<T> {
   return enqueueSynchronization(async () => {
     await cancelAllReminderNotifications();
+    await clearNativeReminderAlarms();
     return resetData();
+  });
+}
+
+/** Tops up the one-shot native alarm window and follows exact-alarm access changes made in Settings. */
+export function refreshReminderDeliveryIfStale(settings: AppSettings, permissionGranted: boolean): Promise<void> {
+  return enqueueSynchronization(async () => {
+    if (!permissionGranted || !lastFullSynchronization) return;
+    const nativeMode = await isNativeAlarmDeliveryAvailable();
+    if (nativeMode === lastFullSynchronization.nativeMode
+      && Date.now() - lastFullSynchronization.at < FOREGROUND_RESYNC_INTERVAL_MS) return;
+    await performFullSynchronization(settings, permissionGranted);
   });
 }
 
@@ -271,6 +431,14 @@ async function performDoseFollowUpCancellation(reminderId: number, scheduledDate
   const identifiers = [...new Set([...persisted.map((item) => item.notificationId), ...matching.map((item) => item.identifier)])];
   await Promise.all(identifiers.map(cancelNotification));
   await deleteScheduledFollowUpsForDose(reminderId, scheduledDate);
+
+  if (nativeAlarmsSupported()) {
+    const sequences = Array.from({ length: MAX_FOLLOW_UP_SEQUENCE - 1 }, (_, index) => index + 2);
+    await cancelAlarmOccurrences([
+      nativeAlarmKey(reminderId, scheduledDate, 'daily', 1),
+      ...sequences.map((sequence) => nativeAlarmKey(reminderId, scheduledDate, 'follow_up', sequence)),
+    ]);
+  }
 }
 
 export function cancelFollowUpsForDose(reminderId: number, scheduledDate: string): Promise<void> {

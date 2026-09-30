@@ -7,13 +7,50 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.util.Log
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 
 object ProductionAlarmScheduler {
   const val PRODUCTION_REQUEST_CODE = 920000
   const val PRODUCTION_SHOW_REQUEST_CODE = 920001
   private const val TAG = "ReminderAlarm"
 
+  /** Must match FOLLOW_UP_HORIZON_DAYS in src/utils/repeatReminders.ts (the window TypeScript keeps scheduled). */
+  private const val ROLL_FORWARD_DAYS = 14
+
+  /**
+   * Keeps a daily reminder going while the app is not opened: when a daily occurrence fires, the same
+   * reminder is armed again [ROLL_FORWARD_DAYS] later at the same local wall-clock time. This mirrors
+   * the old repeating Expo daily notification; the next app sync replaces it with SQLite-derived data.
+   * Follow-ups are not rolled because they depend on taken state, which only TypeScript knows.
+   */
+  fun rollDailyForward(context: Context, fired: AlarmOccurrenceSpec): Unit = synchronized(NativeAlarmRegistry.lock) {
+    if (fired.kind != AlarmOccurrenceSpec.KIND_DAILY) return
+    val next = Calendar.getInstance().apply {
+      timeInMillis = fired.triggerAtMillis
+      add(Calendar.DAY_OF_MONTH, ROLL_FORWARD_DAYS)
+    }
+    val scheduledDate = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(next.time)
+    val alarmKey = AlarmOccurrenceSpec.alarmKey(fired.reminderId, scheduledDate, AlarmOccurrenceSpec.KIND_DAILY, 1)
+    if (NativeAlarmRegistry.get(context, alarmKey) != null) return
+    val outcome = scheduleLocked(
+      context,
+      fired.copy(alarmKey = alarmKey, scheduledDate = scheduledDate, triggerAtMillis = next.timeInMillis),
+      persistAfterSuccess = true,
+    )
+    Log.i(TAG, "PRODUCTION_ALARM_ROLLED from=${fired.alarmKey} to=$alarmKey scheduled=${outcome.scheduled} reason=${outcome.failureReason}")
+  }
+
   fun schedule(
+    context: Context,
+    spec: AlarmOccurrenceSpec,
+    persistAfterSuccess: Boolean,
+  ): ProductionScheduleOutcome = synchronized(NativeAlarmRegistry.lock) {
+    scheduleLocked(context, spec, persistAfterSuccess)
+  }
+
+  private fun scheduleLocked(
     context: Context,
     spec: AlarmOccurrenceSpec,
     persistAfterSuccess: Boolean,
@@ -55,10 +92,17 @@ object ProductionAlarmScheduler {
     } catch (_: IllegalArgumentException) {
       operation.cancel()
       ProductionScheduleOutcome(false, "scheduling_failed")
+    } catch (_: IllegalStateException) {
+      // Android caps concurrent alarms per app (500 on API 31+).
+      operation.cancel()
+      ProductionScheduleOutcome(false, "alarm_limit_reached")
     }
   }
 
-  fun cancel(context: Context, alarmKey: String, removeFromRegistry: Boolean = true): Boolean {
+  fun cancel(context: Context, alarmKey: String, removeFromRegistry: Boolean = true): Boolean =
+    synchronized(NativeAlarmRegistry.lock) { cancelLocked(context, alarmKey, removeFromRegistry) }
+
+  private fun cancelLocked(context: Context, alarmKey: String, removeFromRegistry: Boolean): Boolean {
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
     val existingSpec = NativeAlarmRegistry.get(context, alarmKey)
     val identitySpec = existingSpec ?: identityOnlySpec(alarmKey)
@@ -74,7 +118,7 @@ object ProductionAlarmScheduler {
     return found
   }
 
-  fun restoreRegistered(context: Context, reason: String): RestorationSummary {
+  fun restoreRegistered(context: Context, reason: String): RestorationSummary = synchronized(NativeAlarmRegistry.lock) {
     val entries = NativeAlarmRegistry.all(context)
     val now = System.currentTimeMillis()
     var restored = 0
@@ -83,11 +127,11 @@ object ProductionAlarmScheduler {
 
     for (spec in entries) {
       if (spec.triggerAtMillis <= now) {
-        cancel(context, spec.alarmKey)
+        cancelLocked(context, spec.alarmKey, removeFromRegistry = true)
         removedPast += 1
         continue
       }
-      val outcome = schedule(context, spec, persistAfterSuccess = false)
+      val outcome = scheduleLocked(context, spec, persistAfterSuccess = false)
       if (outcome.scheduled) restored += 1 else failed += 1
     }
     val summary = RestorationSummary(entries.size, restored, removedPast, failed)
@@ -96,7 +140,51 @@ object ProductionAlarmScheduler {
       "PRODUCTION_ALARM_RESTORE reason=$reason registry=${summary.registryCount} " +
         "restored=${summary.restored} removedPast=${summary.removedPast} failed=${summary.failed}",
     )
-    return summary
+    summary
+  }
+
+  /**
+   * Makes the native alarms for [scopeReminderIds] (or every reminder when [replaceAll]) exactly match
+   * [specs], which TypeScript derived from SQLite. Every desired alarm is re-issued, so alarms the OS
+   * dropped while the registry still listed them are recovered. The registry is written once.
+   */
+  fun synchronize(
+    context: Context,
+    specs: List<AlarmOccurrenceSpec>,
+    scopeReminderIds: Set<Long>,
+    replaceAll: Boolean,
+  ): SynchronizationSummary = synchronized(NativeAlarmRegistry.lock) {
+    if (!canScheduleExactAlarms(context)) {
+      return@synchronized SynchronizationSummary(0, 0, specs.map { it.alarmKey to "exact_alarm_access_required" }, false)
+    }
+    val inScope = { spec: AlarmOccurrenceSpec -> replaceAll || spec.reminderId in scopeReminderIds }
+    val existing = NativeAlarmRegistry.all(context)
+    val desiredKeys = specs.mapTo(HashSet()) { it.alarmKey }
+    val stale = existing.filter { inScope(it) && it.alarmKey !in desiredKeys }
+    stale.forEach { cancelLocked(context, it.alarmKey, removeFromRegistry = false) }
+
+    val scheduled = ArrayList<AlarmOccurrenceSpec>(specs.size)
+    val failures = ArrayList<Pair<String, String>>()
+    for (spec in specs) {
+      if (!inScope(spec)) {
+        failures += spec.alarmKey to "out_of_scope"
+        continue
+      }
+      val outcome = scheduleLocked(context, spec, persistAfterSuccess = false)
+      if (outcome.scheduled) scheduled += spec else failures += spec.alarmKey to (outcome.failureReason ?: "scheduling_failed")
+    }
+
+    val kept = existing.filter { !inScope(it) }
+    if (!NativeAlarmRegistry.replaceAll(context, kept + scheduled)) {
+      scheduled.forEach { cancelLocked(context, it.alarmKey, removeFromRegistry = false) }
+      return@synchronized SynchronizationSummary(0, stale.size, specs.map { it.alarmKey to "registry_write_failed" }, true)
+    }
+    Log.i(
+      TAG,
+      "PRODUCTION_ALARM_SYNC replaceAll=$replaceAll scope=${scopeReminderIds.size} desired=${specs.size} " +
+        "scheduled=${scheduled.size} cancelled=${stale.size} failed=${failures.size}",
+    )
+    SynchronizationSummary(scheduled.size, stale.size, failures, true)
   }
 
   fun canScheduleExactAlarms(context: Context): Boolean {
@@ -177,6 +265,13 @@ object ProductionAlarmScheduler {
 data class ProductionScheduleOutcome(
   val scheduled: Boolean,
   val failureReason: String?,
+)
+
+data class SynchronizationSummary(
+  val scheduled: Int,
+  val cancelled: Int,
+  val failures: List<Pair<String, String>>,
+  val exactAlarmAccess: Boolean,
 )
 
 data class RestorationSummary(

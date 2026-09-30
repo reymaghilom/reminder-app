@@ -149,6 +149,20 @@ class ReminderAlarmModule : Module() {
       alarmKeys.distinct().count { ProductionAlarmScheduler.cancel(context, it) }
     }
 
+    AsyncFunction("synchronizeAlarmOccurrences") { rawSpecs: List<Map<String, Any?>>, scopeReminderIds: List<Double>, replaceAll: Boolean ->
+      val context = appContext.reactContext
+        ?: return@AsyncFunction synchronizationResult(0, 0, listOf("" to "context_unavailable"), false)
+      val invalid = ArrayList<Pair<String, String>>()
+      val specs = rawSpecs.mapNotNull { raw ->
+        val parsed = AlarmOccurrenceSpec.fromMap(raw)
+        if (parsed.spec == null) invalid += (raw["alarmKey"] as? String ?: "") to (parsed.error ?: "invalid_spec")
+        parsed.spec
+      }
+      val scope = scopeReminderIds.mapTo(HashSet()) { it.toLong() }
+      val summary = ProductionAlarmScheduler.synchronize(context, specs, scope, replaceAll)
+      synchronizationResult(summary.scheduled, summary.cancelled, invalid + summary.failures, summary.exactAlarmAccess)
+    }
+
     AsyncFunction("getScheduledAlarmRegistry") {
       val context = appContext.reactContext ?: return@AsyncFunction emptyList<Map<String, Any>>()
       NativeAlarmRegistry.all(context).map(AlarmOccurrenceSpec::toMap)
@@ -174,6 +188,18 @@ private fun testAlarmResult(
   "triggerAtMillis" to triggerAtMillis.toDouble(),
   "method" to method,
   "failureReason" to failureReason,
+)
+
+private fun synchronizationResult(
+  scheduled: Int,
+  cancelled: Int,
+  failures: List<Pair<String, String>>,
+  exactAlarmAccess: Boolean,
+): Map<String, Any?> = mapOf(
+  "scheduled" to scheduled,
+  "cancelled" to cancelled,
+  "failures" to failures.map { (alarmKey, failureReason) -> mapOf("alarmKey" to alarmKey, "failureReason" to failureReason) },
+  "exactAlarmAccess" to exactAlarmAccess,
 )
 
 private fun productionAlarmResult(

@@ -11,7 +11,8 @@ import org.json.JSONArray
 object NativeAlarmRegistry {
   private const val PREFERENCES_NAME = "reminder_alarm_registry_v1"
   private const val OCCURRENCES_KEY = "occurrences"
-  private val lock = Any()
+  /** Shared with ProductionAlarmScheduler so registry and AlarmManager changes are applied together. */
+  internal val lock = Any()
 
   fun get(context: Context, alarmKey: String): AlarmOccurrenceSpec? =
     all(context).firstOrNull { it.alarmKey == alarmKey }
@@ -41,6 +42,10 @@ object NativeAlarmRegistry {
     val removed = entries.remove(alarmKey) != null
     if (!removed) return@synchronized false
     write(context, entries.values.sortedBy { it.alarmKey })
+  }
+
+  fun replaceAll(context: Context, entries: Collection<AlarmOccurrenceSpec>): Boolean = synchronized(lock) {
+    write(context, entries.associateBy { it.alarmKey }.values.sortedBy { it.alarmKey })
   }
 
   fun clear(context: Context): Boolean = synchronized(lock) {

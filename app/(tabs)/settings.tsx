@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, AppState, Platform, StyleSheet, Text, View } from 'react-native';
+import { Alert, AppState, Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -155,7 +155,8 @@ export default function SettingsScreen() {
       <SettingRow icon="refresh-outline" label="Repeat if Not Taken" description="Send additional reminders until the dose is confirmed." toggle toggleValue={settings.repeatNotTakenEnabled} disabled={resettingAppData} onToggle={(value) => void toggle('repeatNotTakenEnabled', value)} />
       <SettingRow icon="timer-outline" label="Repeat Interval" value={`${settings.repeatIntervalMinutes} minutes`} disabled={resettingAppData || !settings.repeatNotTakenEnabled} onPress={() => setIntervalOpen(true)} />
       <SettingRow icon="notifications-outline" label="Maximum Reminders" description="Includes the initial scheduled reminder." value={String(settings.maximumReminders)} disabled={resettingAppData || !settings.repeatNotTakenEnabled} onPress={() => setMaximumOpen(true)} />
-      {Platform.OS === 'android' && <SettingRow icon="alarm-outline" label="Exact alarm access" description={alarmCapabilities?.canScheduleExactAlarms ? undefined : 'Required for precise reminder alarms.'} value={alarmCapabilities?.canScheduleExactAlarms ? 'Enabled' : alarmCapabilities ? 'Open Settings' : 'Checking…'} disabled={resettingAppData || !alarmCapabilities} onPress={alarmCapabilities && !alarmCapabilities.canScheduleExactAlarms ? () => void showExactAlarmSettings() : undefined} last />}
+      {Platform.OS === 'android' && <SettingRow icon="alarm-outline" label="Exact alarm access" description={alarmCapabilities?.canScheduleExactAlarms ? 'Reminders ring as alarms.' : 'Turn on so reminders ring as alarms. Without it, regular notifications are used.'} value={alarmCapabilities?.canScheduleExactAlarms ? 'Enabled' : alarmCapabilities ? 'Open Settings' : 'Checking…'} disabled={resettingAppData || !alarmCapabilities} onPress={alarmCapabilities && !alarmCapabilities.canScheduleExactAlarms ? () => void showExactAlarmSettings() : undefined} last={!alarmCapabilities?.canScheduleExactAlarms} />}
+      {Platform.OS === 'android' && alarmCapabilities?.canScheduleExactAlarms && <SettingRow icon="power-outline" label="Keep alarms after restart" description="On realme, OPPO, vivo, or Xiaomi phones, allow Auto launch so alarms return after a restart." value="Open Settings" disabled={resettingAppData} onPress={() => void Linking.openSettings()} last />}
     </View>
     {Platform.OS === 'android' && __DEV__ && <>
       <SectionLabel text="NATIVE ALARM TEST" />

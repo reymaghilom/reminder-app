@@ -9,11 +9,14 @@ import {
   openNativeExactAlarmSettings,
   scheduleNativeAlarmOccurrence,
   scheduleNativeTestAlarm,
+  synchronizeNativeAlarmOccurrences,
 } from '../../modules/reminder-alarm/src/ReminderAlarmModule';
 import {
   AlarmCapabilities,
+  NativeAlarmOccurrenceKind,
   NativeAlarmOccurrenceSpec,
   NativeAlarmScheduleResult,
+  NativeAlarmSynchronizationResult,
   TestAlarmScheduleResult,
 } from '../../modules/reminder-alarm/src/ReminderAlarm.types';
 
@@ -22,8 +25,42 @@ export type {
   NativeAlarmOccurrenceKind,
   NativeAlarmOccurrenceSpec,
   NativeAlarmScheduleResult,
+  NativeAlarmSynchronizationResult,
   TestAlarmScheduleResult,
 } from '../../modules/reminder-alarm/src/ReminderAlarm.types';
+
+/** Must match AlarmOccurrenceSpec.alarmKey in Kotlin, which rejects any other key. */
+export function nativeAlarmKey(
+  reminderId: number,
+  scheduledDate: string,
+  kind: NativeAlarmOccurrenceKind,
+  sequence: number,
+): string {
+  return kind === 'daily'
+    ? `reminder:${reminderId}:${scheduledDate}:daily`
+    : `reminder:${reminderId}:${scheduledDate}:followup:${sequence}`;
+}
+
+/** True when real reminders should be delivered as native alarm-clock alarms instead of Expo notifications. */
+export async function isNativeAlarmDeliveryAvailable(): Promise<boolean> {
+  if (Platform.OS !== 'android') return false;
+  try {
+    return (await getNativeAlarmCapabilities()).canScheduleExactAlarms;
+  } catch {
+    return false;
+  }
+}
+
+export function synchronizeAlarmOccurrences(
+  specs: NativeAlarmOccurrenceSpec[],
+  scopeReminderIds: number[],
+  replaceAll: boolean,
+): Promise<NativeAlarmSynchronizationResult> {
+  if (Platform.OS !== 'android') {
+    return Promise.resolve({ scheduled: 0, cancelled: 0, failures: [], exactAlarmAccess: false });
+  }
+  return synchronizeNativeAlarmOccurrences(specs, scopeReminderIds, replaceAll);
+}
 
 export function getAlarmCapabilities(): Promise<AlarmCapabilities> {
   if (Platform.OS !== 'android') {
@@ -93,7 +130,7 @@ export function createSyntheticProductionAlarmOccurrence(triggerAtMillis: number
   ].join('-');
   const reminderId = -900001;
   return {
-    alarmKey: `reminder:${reminderId}:${scheduledDate}:daily`,
+    alarmKey: nativeAlarmKey(reminderId, scheduledDate, 'daily', 1),
     reminderId,
     scheduledDate,
     kind: 'daily',

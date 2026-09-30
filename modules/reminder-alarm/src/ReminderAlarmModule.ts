@@ -3,6 +3,7 @@ import {
   AlarmCapabilities,
   NativeAlarmOccurrenceSpec,
   NativeAlarmScheduleResult,
+  NativeAlarmSynchronizationResult,
   TestAlarmScheduleResult,
 } from './ReminderAlarm.types';
 
@@ -14,6 +15,11 @@ interface ReminderAlarmNativeModule {
   scheduleAlarmOccurrence(spec: NativeAlarmOccurrenceSpec): Promise<NativeAlarmScheduleResult>;
   cancelAlarmOccurrence(alarmKey: string): Promise<boolean>;
   cancelAlarmOccurrences(alarmKeys: string[]): Promise<number>;
+  synchronizeAlarmOccurrences(
+    specs: NativeAlarmOccurrenceSpec[],
+    scopeReminderIds: number[],
+    replaceAll: boolean,
+  ): Promise<NativeAlarmSynchronizationResult>;
   getScheduledAlarmRegistry(): Promise<NativeAlarmOccurrenceSpec[]>;
   clearNativeAlarmRegistry(): Promise<number>;
 }
@@ -44,6 +50,15 @@ export function cancelNativeAlarmOccurrence(alarmKey: string): Promise<boolean> 
 
 export function cancelNativeAlarmOccurrences(alarmKeys: string[]): Promise<number> {
   return requireNativeModule<ReminderAlarmNativeModule>('ReminderAlarm').cancelAlarmOccurrences(alarmKeys);
+}
+
+export function synchronizeNativeAlarmOccurrences(
+  specs: NativeAlarmOccurrenceSpec[],
+  scopeReminderIds: number[],
+  replaceAll: boolean,
+): Promise<NativeAlarmSynchronizationResult> {
+  return requireNativeModule<ReminderAlarmNativeModule>('ReminderAlarm')
+    .synchronizeAlarmOccurrences(specs, scopeReminderIds, replaceAll);
 }
 
 export function getNativeScheduledAlarmRegistry(): Promise<NativeAlarmOccurrenceSpec[]> {

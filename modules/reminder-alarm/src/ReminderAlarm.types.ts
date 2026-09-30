@@ -24,6 +24,15 @@ export interface NativeAlarmOccurrenceSpec {
   triggerAtMillis: number;
   title: string;
   body: string;
+  /** Defaults to true in Kotlin, which also keeps older registry entries readable. */
+  vibrate?: boolean;
+}
+
+export interface NativeAlarmSynchronizationResult {
+  scheduled: number;
+  cancelled: number;
+  failures: { alarmKey: string; failureReason: string }[];
+  exactAlarmAccess: boolean;
 }
 
 export interface NativeAlarmScheduleResult {

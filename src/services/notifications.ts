@@ -17,8 +17,8 @@ import { Reminder } from '@/types';
 import { parseTime } from '@/utils/time';
 
 export const NOTIFICATION_CHANNEL_ID = 'vitamin-reminders';
-const NOTIFICATION_TITLE = 'Reminder';
-const NOTIFICATION_MESSAGE = 'It’s time to take your vitamin/supplement.';
+export const NOTIFICATION_TITLE = 'Reminder';
+export const NOTIFICATION_MESSAGE = 'It’s time to take your vitamin/supplement.';
 let configuredVibration: boolean | null = null;
 
 setNotificationHandler({

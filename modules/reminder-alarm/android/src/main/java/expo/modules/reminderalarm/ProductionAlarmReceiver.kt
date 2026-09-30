@@ -35,6 +35,11 @@ class ProductionAlarmReceiver : BroadcastReceiver() {
     } finally {
       NativeAlarmRegistry.remove(context, alarmKey)
       ProductionAlarmScheduler.pendingIntent(context, spec, PendingIntent.FLAG_NO_CREATE)?.cancel()
+      try {
+        ProductionAlarmScheduler.rollDailyForward(context, spec)
+      } catch (error: RuntimeException) {
+        Log.w(TAG, "Unable to roll daily alarm forward: $alarmKey", error)
+      }
     }
   }
 
@@ -44,18 +49,20 @@ class ProductionAlarmReceiver : BroadcastReceiver() {
     val alarmSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
       ?: Settings.System.DEFAULT_NOTIFICATION_URI
     val vibration = longArrayOf(0, 500, 250, 500, 250, 750)
+    // Channel vibration cannot change after creation, so the app's vibration setting selects a channel.
+    val channelId = if (spec.vibrate) CHANNEL_ID else NO_VIBRATION_CHANNEL_ID
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       notificationManager.createNotificationChannel(
         NotificationChannel(
-          CHANNEL_ID,
-          "Reminder Alarms",
+          channelId,
+          if (spec.vibrate) "Reminder Alarms" else "Reminder Alarms (no vibration)",
           NotificationManager.IMPORTANCE_HIGH,
         ).apply {
           description = "Time-sensitive Reminder App alarms"
           lockscreenVisibility = Notification.VISIBILITY_PUBLIC
-          enableVibration(true)
-          vibrationPattern = vibration
+          enableVibration(spec.vibrate)
+          vibrationPattern = if (spec.vibrate) vibration else null
           setSound(
             alarmSound,
             AudioAttributes.Builder()
@@ -91,7 +98,7 @@ class ProductionAlarmReceiver : BroadcastReceiver() {
       putLong(EXTRA_TRIGGER_AT_MILLIS, spec.triggerAtMillis)
     }
     val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-      Notification.Builder(context, CHANNEL_ID)
+      Notification.Builder(context, channelId)
     } else {
       Notification.Builder(context)
     }
@@ -104,7 +111,7 @@ class ProductionAlarmReceiver : BroadcastReceiver() {
       .setVisibility(Notification.VISIBILITY_PUBLIC)
       .setAutoCancel(true)
       .setSound(alarmSound)
-      .setVibrate(vibration)
+      .setVibrate(if (spec.vibrate) vibration else null)
       .setExtras(metadata)
       .apply { if (contentIntent != null) setContentIntent(contentIntent) }
       .build()
@@ -124,6 +131,7 @@ class ProductionAlarmReceiver : BroadcastReceiver() {
 
   companion object {
     const val CHANNEL_ID = "native-reminder-alarms"
+    const val NO_VIBRATION_CHANNEL_ID = "native-reminder-alarms-no-vibration"
     const val NOTIFICATION_ID = 920001
     const val EXTRA_ALARM_KEY = "alarmKey"
     const val EXTRA_REMINDER_ID = "reminderId"

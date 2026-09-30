@@ -19,6 +19,7 @@ data class AlarmOccurrenceSpec(
   val triggerAtMillis: Long,
   val title: String,
   val body: String,
+  val vibrate: Boolean = true,
 ) {
   fun toMap(): Map<String, Any> = mapOf(
     "alarmKey" to alarmKey,
@@ -29,6 +30,7 @@ data class AlarmOccurrenceSpec(
     "triggerAtMillis" to triggerAtMillis.toDouble(),
     "title" to title,
     "body" to body,
+    "vibrate" to vibrate,
   )
 
   fun toJson(): JSONObject = JSONObject()
@@ -40,6 +42,7 @@ data class AlarmOccurrenceSpec(
     .put("triggerAtMillis", triggerAtMillis)
     .put("title", title)
     .put("body", body)
+    .put("vibrate", vibrate)
 
   companion object {
     const val KIND_DAILY = "daily"
@@ -68,6 +71,7 @@ data class AlarmOccurrenceSpec(
         triggerAtMillis = triggerAtMillis,
         title = raw["title"] as? String ?: "",
         body = raw["body"] as? String ?: "",
+        vibrate = raw["vibrate"] as? Boolean ?: true,
       )
       return validate(spec, requireFuture = true)
     }
@@ -82,6 +86,7 @@ data class AlarmOccurrenceSpec(
         triggerAtMillis = json.getLong("triggerAtMillis"),
         title = json.getString("title"),
         body = json.getString("body"),
+        vibrate = json.optBoolean("vibrate", true),
       )
       validate(spec, requireFuture = false).spec
     } catch (_: Exception) {

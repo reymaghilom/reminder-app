@@ -1,3 +1,4 @@
+import { AppState as NativeAppState } from 'react-native';
 import { create } from 'zustand';
 import { getDatabase } from '@/database/database';
 import { resetStoredAppData } from '@/database/repositories/appData';
@@ -16,9 +17,16 @@ import { AppSettings, Reminder, ReminderWithStatus, Vitamin, VitaminInput } from
 import { dateKey } from '@/utils/date';
 import { combineReminders, getReminderStatus } from '@/utils/reminderStatus';
 import { requestNotificationPermission } from '@/services/notifications';
-import { cancelFollowUpsForDose, reconcileReminder, resetReminderNotificationsAndData, syncAllReminderNotifications } from '@/services/reminderScheduler';
+import {
+  cancelFollowUpsForDose,
+  reconcileReminder,
+  refreshReminderDeliveryIfStale,
+  resetReminderNotificationsAndData,
+  syncAllReminderNotifications,
+} from '@/services/reminderScheduler';
 
-const repeatSettingKeys: (keyof AppSettings)[] = ['repeatNotTakenEnabled', 'repeatIntervalMinutes', 'maximumReminders'];
+/** Settings that change what is scheduled; vibration is baked into each native alarm. */
+const deliverySettingKeys: (keyof AppSettings)[] = ['repeatNotTakenEnabled', 'repeatIntervalMinutes', 'maximumReminders', 'vibrationEnabled'];
 
 type ReminderValues = Pick<Reminder, 'mealPeriod' | 'customScheduleLabel' | 'scheduledTime' | 'enabled'>;
 type ReminderUpdateResult = { changed: boolean; notificationsSynchronized: boolean };
@@ -102,6 +110,13 @@ export const useAppStore = create<AppState>((set, get) => ({
           } catch (error) { if (__DEV__) console.warn('Notification setup unavailable', error); }
         })();
         await notificationSetupPromise;
+
+        NativeAppState.addEventListener('change', (state) => {
+          if (state !== 'active' || get().resettingAppData) return;
+          void refreshReminderDeliveryIfStale(get().settings, notificationPermissionGranted).catch((error) => {
+            if (__DEV__) console.warn('Foreground reminder refresh unavailable', error);
+          });
+        });
       } catch (error) {
         if (__DEV__) console.error('Reminder App initialization failed', error);
         set({ error: 'Reminder App could not finish setting up. Please restart the app.' });
@@ -286,7 +301,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
       throw error;
     }
-    if (repeatSettingKeys.includes(key)) {
+    if (deliverySettingKeys.includes(key)) {
       try {
         await syncAllReminderNotifications(get().settings, notificationPermissionGranted);
       } catch (error) {
