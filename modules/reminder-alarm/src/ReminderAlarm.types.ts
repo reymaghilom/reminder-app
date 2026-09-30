@@ -11,3 +11,25 @@ export interface TestAlarmScheduleResult {
   method: 'setAlarmClock';
   failureReason: string | null;
 }
+
+export type NativeAlarmOccurrenceKind = 'daily' | 'follow_up';
+
+/** Derived scheduling state; SQLite/Zustand remain authoritative. */
+export interface NativeAlarmOccurrenceSpec {
+  alarmKey: string;
+  reminderId: number;
+  scheduledDate: string;
+  kind: NativeAlarmOccurrenceKind;
+  sequence: number;
+  triggerAtMillis: number;
+  title: string;
+  body: string;
+}
+
+export interface NativeAlarmScheduleResult {
+  scheduled: boolean;
+  alarmKey: string;
+  triggerAtMillis: number;
+  method: 'setAlarmClock';
+  failureReason: string | null;
+}

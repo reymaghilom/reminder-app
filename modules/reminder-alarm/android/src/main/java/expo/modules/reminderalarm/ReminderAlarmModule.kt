@@ -113,6 +113,54 @@ class ReminderAlarmModule : Module() {
       operation.cancel()
       true
     }
+
+    AsyncFunction("scheduleAlarmOccurrence") { rawSpec: Map<String, Any?> ->
+      val parsed = AlarmOccurrenceSpec.fromMap(rawSpec)
+      val spec = parsed.spec
+        ?: return@AsyncFunction productionAlarmResult(
+          scheduled = false,
+          alarmKey = rawSpec["alarmKey"] as? String ?: "",
+          triggerAtMillis = (rawSpec["triggerAtMillis"] as? Number)?.toLong() ?: 0L,
+          failureReason = parsed.error ?: "invalid_spec",
+        )
+      val context = appContext.reactContext
+        ?: return@AsyncFunction productionAlarmResult(
+          false,
+          spec.alarmKey,
+          spec.triggerAtMillis,
+          "context_unavailable",
+        )
+      val outcome = ProductionAlarmScheduler.schedule(context, spec, persistAfterSuccess = true)
+      productionAlarmResult(
+        outcome.scheduled,
+        spec.alarmKey,
+        spec.triggerAtMillis,
+        outcome.failureReason,
+      )
+    }
+
+    AsyncFunction("cancelAlarmOccurrence") { alarmKey: String ->
+      val context = appContext.reactContext ?: return@AsyncFunction false
+      ProductionAlarmScheduler.cancel(context, alarmKey)
+    }
+
+    AsyncFunction("cancelAlarmOccurrences") { alarmKeys: List<String> ->
+      val context = appContext.reactContext ?: return@AsyncFunction 0
+      alarmKeys.distinct().count { ProductionAlarmScheduler.cancel(context, it) }
+    }
+
+    AsyncFunction("getScheduledAlarmRegistry") {
+      val context = appContext.reactContext ?: return@AsyncFunction emptyList<Map<String, Any>>()
+      NativeAlarmRegistry.all(context).map(AlarmOccurrenceSpec::toMap)
+    }
+
+    AsyncFunction("clearNativeAlarmRegistry") {
+      val context = appContext.reactContext ?: return@AsyncFunction 0
+      val entries = NativeAlarmRegistry.all(context)
+      entries.forEach { ProductionAlarmScheduler.cancel(context, it.alarmKey) }
+      NativeAlarmRegistry.clear(context)
+      entries.size
+    }
   }
 }
 
@@ -125,5 +173,18 @@ private fun testAlarmResult(
   "scheduled" to scheduled,
   "triggerAtMillis" to triggerAtMillis.toDouble(),
   "method" to method,
+  "failureReason" to failureReason,
+)
+
+private fun productionAlarmResult(
+  scheduled: Boolean,
+  alarmKey: String,
+  triggerAtMillis: Long,
+  failureReason: String?,
+): Map<String, Any?> = mapOf(
+  "scheduled" to scheduled,
+  "alarmKey" to alarmKey,
+  "triggerAtMillis" to triggerAtMillis.toDouble(),
+  "method" to "setAlarmClock",
   "failureReason" to failureReason,
 )
