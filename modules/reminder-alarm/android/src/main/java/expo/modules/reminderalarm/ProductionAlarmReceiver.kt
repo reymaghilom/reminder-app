@@ -131,6 +131,9 @@ class ProductionAlarmReceiver : BroadcastReceiver() {
       .addAction(takenAction)
       .apply { if (contentIntent != null) setContentIntent(contentIntent) }
       .build()
+      // Loop the alarm tone (and vibration) until the user opens the shade, taps, or dismisses it,
+      // like an alarm clock; a single play of a short tone is easy to miss.
+      .apply { flags = flags or Notification.FLAG_INSISTENT }
 
     try {
       notificationManager.notify(spec.alarmKey, NOTIFICATION_ID, notification)
