@@ -20,11 +20,16 @@ The app lets her set up each supplement with one or more daily doses, get a remi
 
 ## Application Screenshots
 
-![Home Dashboard](screenshots/1.jpg)
-![Home Dashboard](screenshots/2.jpg)
-![Home Dashboard](screenshots/3.jpg)
-![Home Dashboard](screenshots/4.jpg)
-![Home Dashboard](screenshots/5.jpg)
+<p align="center">
+  <img src="screenshots/1.jpg" width="180" alt="Reminder App Home Screen">
+  <img src="screenshots/2.jpg" width="180" alt="Reminder App Schedule Screen">
+  <img src="screenshots/3.jpg" width="180" alt="Reminder App History Screen">
+</p>
+
+<p align="center">
+  <img src="screenshots/4.jpg" width="180" alt="Reminder App Settings Screen">
+  <img src="screenshots/5.jpg" width="180" alt="Reminder App Alarm Screen">
+</p>
 
 ## Technology Stack
 
