@@ -18,6 +18,14 @@ The app lets her set up each supplement with one or more daily doses, get a remi
 - **Local SQLite storage:** a versioned schema with migrations, plus snapshot fields so past history stays correct after a schedule is edited.
 - **Settings:** light and dark themes, vibration, a test notification, and options to reset intake history or all app data.
 
+## Application Screenshots
+
+![Home Dashboard](screenshots/1.jpeg)
+![Home Dashboard](screenshots/2.jpeg)
+![Home Dashboard](screenshots/3.jpeg)
+![Home Dashboard](screenshots/4.jpeg)
+![Home Dashboard](screenshots/5.jpeg)
+
 ## Technology Stack
 
 | Category | Technologies |
