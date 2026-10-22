@@ -1,11 +1,109 @@
 -- Merging decision tree log ---
 manifest
-ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:1:1-71
-INJECTED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:1:1-71
+ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:1:1-43:12
+INJECTED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:1:1-43:12
 	package
 		INJECTED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml
 	xmlns:android
 		ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:1:11-69
+uses-permission#android.permission.SCHEDULE_EXACT_ALARM
+ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:2:3-76
+	android:name
+		ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:2:20-74
+uses-permission#android.permission.RECEIVE_BOOT_COMPLETED
+ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:3:3-78
+	android:name
+		ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:3:20-76
+uses-permission#android.permission.FOREGROUND_SERVICE
+ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:5:3-74
+	android:name
+		ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:5:20-72
+uses-permission#android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK
+ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:6:3-89
+	android:name
+		ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:6:20-87
+uses-permission#android.permission.USE_FULL_SCREEN_INTENT
+ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:7:3-78
+	android:name
+		ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:7:20-76
+uses-permission#android.permission.WAKE_LOCK
+ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:8:3-65
+	android:name
+		ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:8:20-63
+uses-permission#android.permission.VIBRATE
+ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:9:3-63
+	android:name
+		ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:9:20-61
+application
+ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:10:3-42:17
+service#expo.modules.reminderalarm.AlarmRingingService
+ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:11:5-14:54
+	android:exported
+		ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:13:7-31
+	android:foregroundServiceType
+		ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:14:7-52
+	android:name
+		ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:12:7-68
+activity#expo.modules.reminderalarm.AlarmRingingActivity
+ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:15:5-24:71
+	android:screenOrientation
+		ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:23:7-43
+	android:turnScreenOn
+		ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:22:7-34
+	android:excludeFromRecents
+		ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:18:7-40
+	android:showWhenLocked
+		ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:21:7-36
+	android:launchMode
+		ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:19:7-38
+	android:exported
+		ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:17:7-31
+	android:theme
+		ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:24:7-69
+	android:taskAffinity
+		ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:20:7-30
+	android:name
+		ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:16:7-69
+receiver#expo.modules.reminderalarm.ReminderAlarmReceiver
+ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:25:5-27:33
+	android:exported
+		ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:27:7-31
+	android:name
+		ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:26:7-70
+receiver#expo.modules.reminderalarm.ProductionAlarmReceiver
+ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:28:5-30:33
+	android:exported
+		ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:30:7-31
+	android:name
+		ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:29:7-72
+receiver#expo.modules.reminderalarm.AlarmRestorationReceiver
+ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:31:5-41:16
+	android:exported
+		ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:33:7-31
+	android:name
+		ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:32:7-73
+intent-filter#action:name:android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED+action:name:android.intent.action.BOOT_COMPLETED+action:name:android.intent.action.MY_PACKAGE_REPLACED+action:name:android.intent.action.TIMEZONE_CHANGED+action:name:android.intent.action.TIME_SET
+ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:34:7-40:23
+action#android.intent.action.BOOT_COMPLETED
+ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:35:9-70
+	android:name
+		ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:35:17-68
+action#android.intent.action.MY_PACKAGE_REPLACED
+ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:36:9-75
+	android:name
+		ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:36:17-73
+action#android.intent.action.TIME_SET
+ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:37:9-64
+	android:name
+		ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:37:17-62
+action#android.intent.action.TIMEZONE_CHANGED
+ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:38:9-72
+	android:name
+		ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:38:17-70
+action#android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED
+ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:39:9-98
+	android:name
+		ADDED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:39:17-96
 uses-sdk
 INJECTED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml

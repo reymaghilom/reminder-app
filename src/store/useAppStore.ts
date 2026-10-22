@@ -68,6 +68,14 @@ function enqueueSettingUpdate(operation: () => Promise<void>): Promise<void> {
   return queued;
 }
 
+/** Re-reads (never requests) notification permission, which the user may have changed in Android settings. */
+async function refreshNotificationPermission(): Promise<boolean> {
+  try {
+    notificationPermissionGranted = await requestNotificationPermission(false);
+  } catch { /* Keep the last known state. */ }
+  return notificationPermissionGranted;
+}
+
 function reminderValuesChanged(reminder: Reminder, values: ReminderValues): boolean {
   return reminder.mealPeriod !== values.mealPeriod
     || reminder.customScheduleLabel !== values.customScheduleLabel
@@ -113,7 +121,13 @@ export const useAppStore = create<AppState>((set, get) => ({
 
         NativeAppState.addEventListener('change', (state) => {
           if (state !== 'active' || get().resettingAppData) return;
-          void refreshReminderDeliveryIfStale(get().settings, notificationPermissionGranted).catch((error) => {
+          void (async () => {
+            const wasGranted = notificationPermissionGranted;
+            const granted = await refreshNotificationPermission();
+            // Nothing is scheduled without permission, so a newly granted one needs the full pass.
+            if (granted && !wasGranted) await syncAllReminderNotifications(get().settings, granted);
+            else await refreshReminderDeliveryIfStale(get().settings, granted);
+          })().catch((error) => {
             if (__DEV__) console.warn('Foreground reminder refresh unavailable', error);
           });
         });
@@ -178,7 +192,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       }));
 
       try {
-        await reconcileReminder(reminderId, get().settings, notificationPermissionGranted);
+        await reconcileReminder(reminderId, get().settings, await refreshNotificationPermission());
         return { changed: true, notificationsSynchronized: true };
       } catch (error) {
         if (__DEV__) console.warn('Reminder notification synchronization unavailable', error);
@@ -226,7 +240,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       for (const old of previous) if (!current.some((item) => item.id === old.id)) affected.add(old.id);
       let notificationsSynchronized = true;
       for (const reminderId of affected) {
-        try { await reconcileReminder(reminderId, get().settings, notificationPermissionGranted); }
+        try { await reconcileReminder(reminderId, get().settings, await refreshNotificationPermission()); }
         catch (error) {
           notificationsSynchronized = false;
           if (__DEV__) console.warn('Vitamin notification synchronization unavailable', error);
@@ -246,7 +260,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       await get().refresh();
       let notificationsSynchronized = true;
       for (const reminderId of reminderIds) {
-        try { await reconcileReminder(reminderId, get().settings, notificationPermissionGranted); }
+        try { await reconcileReminder(reminderId, get().settings, await refreshNotificationPermission()); }
         catch (error) {
           notificationsSynchronized = false;
           if (__DEV__) console.warn('Archived reminder synchronization unavailable', error);
@@ -303,7 +317,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     if (deliverySettingKeys.includes(key)) {
       try {
-        await syncAllReminderNotifications(get().settings, notificationPermissionGranted);
+        await syncAllReminderNotifications(get().settings, await refreshNotificationPermission());
       } catch (error) {
         if (__DEV__) console.warn('Repeat notification synchronization unavailable', error);
       }

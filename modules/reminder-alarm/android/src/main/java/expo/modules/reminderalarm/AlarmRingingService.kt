@@ -77,10 +77,21 @@ class AlarmRingingService : Service() {
     ringing.remove(spec.alarmKey)
     ringing[spec.alarmKey] = spec
     val notification = ringingNotification(spec)
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-      startForeground(RINGING_NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
-    } else {
-      startForeground(RINGING_NOTIFICATION_ID, notification)
+    try {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        startForeground(RINGING_NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+      } else {
+        startForeground(RINGING_NOTIFICATION_ID, notification)
+      }
+    } catch (error: RuntimeException) {
+      // Android can refuse here even after startForegroundService() succeeded (e.g. Android 15 blocks
+      // media-playback services started from BOOT_COMPLETED). Fall back to the looping notification so
+      // the alarm is still delivered instead of crashing.
+      Log.w(TAG, "Unable to ring alarm in the foreground: ${spec.alarmKey}", error)
+      ringing.remove(spec.alarmKey)
+      ProductionAlarmReceiver().postNotification(this, spec)
+      if (ringing.isEmpty()) stopSelf()
+      return
     }
     Log.i(TAG, "PRODUCTION_ALARM_RINGING alarmKey=${spec.alarmKey} ringing=${ringing.size}")
     startOutputs()

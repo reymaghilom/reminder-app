@@ -81,7 +81,11 @@ class AlarmRingingActivity : Activity() {
     // Stop at once; the app then records the dose and clears the rest of this dose's alarms.
     // Detach first so the service does not finish this screen before the unlock + deep link complete.
     if (current?.get() === this) current = null
-    AlarmRingingService.stopKeys(listOf(spec.alarmKey), markedTaken = true)
+    // While locked the unlock can still be cancelled, so stop like Stop does: the quiet missed notification
+    // stays until the app records the dose (the deep link dismisses it), instead of the alarm vanishing.
+    val keyguard = getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+    val locked = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && keyguard?.isKeyguardLocked == true
+    AlarmRingingService.stopKeys(listOf(spec.alarmKey), markedTaken = !locked)
     dismissKeyguardThen { startActivity(ProductionAlarmReceiver.markTakenIntent(this, spec).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
   }
 
@@ -96,6 +100,15 @@ class AlarmRingingActivity : Activity() {
       keyguard.requestDismissKeyguard(this, object : KeyguardManager.KeyguardDismissCallback() {
         override fun onDismissSucceeded() {
           action()
+          finish()
+        }
+
+        // Unlock cancelled or failed: the dose is not recorded and its missed notification remains.
+        override fun onDismissCancelled() {
+          finish()
+        }
+
+        override fun onDismissError() {
           finish()
         }
       })

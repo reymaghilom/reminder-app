@@ -11,6 +11,7 @@ import {
 } from '@/database/repositories/scheduledFollowUps';
 import { Platform } from 'react-native';
 import { AppSettings, Reminder, ScheduledFollowUp } from '@/types';
+import { dateKey, fromDateKey } from '@/utils/date';
 import { dateKeysFrom, FOLLOW_UP_HORIZON_DAYS, followUpDateTime } from '@/utils/repeatReminders';
 import { localWallClock, scheduledDateTime } from '@/utils/time';
 import {
@@ -61,6 +62,23 @@ function followUpKey(reminderId: number, scheduledDate: string, sequence: number
   return `${reminderId}:${scheduledDate}:${sequence}`;
 }
 
+/**
+ * Dates whose follow-ups are reconciled. Yesterday is included because a late-evening dose's follow-ups
+ * can fall after midnight; past follow-ups are skipped, so this only keeps those still to come.
+ */
+function followUpDateKeys(now: Date, dates: string[]): string[] {
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  return [dateKey(yesterday), ...dates];
+}
+
+/** The day after the window, where Kotlin re-arms a daily alarm when it fires (ROLL_FORWARD_DAYS). */
+function dayAfterWindow(dates: string[]): string {
+  const day = fromDateKey(dates[dates.length - 1]);
+  day.setDate(day.getDate() + 1);
+  return dateKey(day);
+}
+
 function devTiming(label: string, startedAt: number, details?: Record<string, number>): void {
   if (__DEV__) console.info(`[Reminder timing] ${label}: ${Date.now() - startedAt}ms`, details ?? '');
 }
@@ -104,7 +122,7 @@ function calculateDesiredFollowUps(
   if (!settings.repeatNotTakenEnabled || settings.maximumReminders <= 1) return desired;
 
   for (const reminder of reminders.filter((item) => item.enabled)) {
-    for (const scheduledDate of dates) {
+    for (const scheduledDate of followUpDateKeys(now, dates)) {
       if (takenDoses.has(`${reminder.id}:${scheduledDate}`)) continue;
       for (let sequence = 2; sequence <= settings.maximumReminders; sequence += 1) {
         const scheduledAt = followUpDateTime(reminder, scheduledDate, sequence, settings.repeatIntervalMinutes);
@@ -244,8 +262,10 @@ function calculateDesiredNativeAlarms(
     });
   };
 
+  // The day after the window is armed too; otherwise a sync would cancel the alarm Kotlin rolls forward
+  // to it when today's alarm fires, leaving a gap if the app is not opened again for two weeks.
   for (const reminder of reminders.filter((item) => item.enabled)) {
-    for (const scheduledDate of dates) {
+    for (const scheduledDate of [...dates, dayAfterWindow(dates)]) {
       if (takenDoses.has(`${reminder.id}:${scheduledDate}`)) continue;
       add(
         reminder.id, scheduledDate, 'daily', 1,
@@ -334,7 +354,7 @@ async function performFullSynchronization(settings: AppSettings, permissionGrant
   devTiming('Expo notification query', queryStartedAt, { scheduled: scheduled.length });
   const [rows, intakes] = await Promise.all([
     listScheduledFollowUps(),
-    listIntakesForRange(dates[0], dates[dates.length - 1]),
+    listIntakesForRange(followUpDateKeys(now, dates)[0], dates[dates.length - 1]),
   ]);
 
   if (nativeMode && await synchronizeNativeAlarms(reminders, settings, intakes, dates, now)) {
@@ -368,6 +388,12 @@ async function performReminderSynchronization(
       await deleteScheduledFollowUpsForReminder(reminder.id);
       if (reminder.notificationId) await updateNotificationId(reminder.id, null);
     }
+    // Native alarms armed while permission was granted would keep ringing on this reminder's old
+    // schedule, and nothing can be re-armed without permission, so cancel only this reminder's alarms.
+    if (nativeAlarmsSupported()) {
+      const alarmDates = [...followUpDateKeys(now, dates), dayAfterWindow(dates)];
+      await cancelAlarmOccurrences(alarmDates.flatMap((date) => doseAlarmKeys(reminder.id, date)));
+    }
     return;
   }
 
@@ -384,14 +410,14 @@ async function performReminderSynchronization(
   devTiming('Expo notification query', queryStartedAt, { scheduled: scheduled.length });
   const [rows, intakes] = await Promise.all([
     listScheduledFollowUpsForReminder(reminder.id),
-    listIntakesForReminderRange(reminder.id, dates[0], dates[dates.length - 1]),
+    listIntakesForReminderRange(reminder.id, followUpDateKeys(now, dates)[0], dates[dates.length - 1]),
   ]);
 
   if (nativeMode) {
     // The alarm budget is shared by all reminders, so native alarms are always derived as a whole.
     const [allReminders, allIntakes] = await Promise.all([
       listReminders(),
-      listIntakesForRange(dates[0], dates[dates.length - 1]),
+      listIntakesForRange(followUpDateKeys(now, dates)[0], dates[dates.length - 1]),
     ]);
     if (await synchronizeNativeAlarms(allReminders, settings, allIntakes, dates, now)) {
       await removeExpoReminderDelivery([reminder], scheduled, rows, false);

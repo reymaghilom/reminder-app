@@ -4,4 +4,98 @@
 4
 5    <uses-sdk android:minSdkVersion="24" />
 6
-7</manifest>
+7    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+7-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:2:3-76
+7-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:2:20-74
+8    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+8-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:3:3-78
+8-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:3:20-76
+9    <!-- Alarm-clock style ringing: foreground service playing the tone, full-screen alarm screen. -->
+10    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+10-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:5:3-74
+10-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:5:20-72
+11    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+11-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:6:3-89
+11-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:6:20-87
+12    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+12-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:7:3-78
+12-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:7:20-76
+13    <uses-permission android:name="android.permission.WAKE_LOCK" />
+13-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:8:3-65
+13-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:8:20-63
+14    <uses-permission android:name="android.permission.VIBRATE" />
+14-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:9:3-63
+14-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:9:20-61
+15
+16    <application>
+16-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:10:3-42:17
+17        <service
+17-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:11:5-14:54
+18            android:name="expo.modules.reminderalarm.AlarmRingingService"
+18-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:12:7-68
+19            android:exported="false"
+19-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:13:7-31
+20            android:foregroundServiceType="mediaPlayback" />
+20-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:14:7-52
+21
+22        <activity
+22-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:15:5-24:71
+23            android:name="expo.modules.reminderalarm.AlarmRingingActivity"
+23-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:16:7-69
+24            android:excludeFromRecents="true"
+24-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:18:7-40
+25            android:exported="false"
+25-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:17:7-31
+26            android:launchMode="singleTask"
+26-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:19:7-38
+27            android:screenOrientation="portrait"
+27-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:23:7-43
+28            android:showWhenLocked="true"
+28-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:21:7-36
+29            android:taskAffinity=""
+29-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:20:7-30
+30            android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
+30-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:24:7-69
+31            android:turnScreenOn="true" />
+31-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:22:7-34
+32
+33        <receiver
+33-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:25:5-27:33
+34            android:name="expo.modules.reminderalarm.ReminderAlarmReceiver"
+34-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:26:7-70
+35            android:exported="false" />
+35-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:27:7-31
+36        <receiver
+36-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:28:5-30:33
+37            android:name="expo.modules.reminderalarm.ProductionAlarmReceiver"
+37-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:29:7-72
+38            android:exported="false" />
+38-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:30:7-31
+39        <receiver
+39-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:31:5-41:16
+40            android:name="expo.modules.reminderalarm.AlarmRestorationReceiver"
+40-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:32:7-73
+41            android:exported="false" >
+41-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:33:7-31
+42            <intent-filter>
+42-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:34:7-40:23
+43                <action android:name="android.intent.action.BOOT_COMPLETED" />
+43-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:35:9-70
+43-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:35:17-68
+44                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+44-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:36:9-75
+44-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:36:17-73
+45                <action android:name="android.intent.action.TIME_SET" />
+45-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:37:9-64
+45-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:37:17-62
+46                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+46-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:38:9-72
+46-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:38:17-70
+47                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+47-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:39:9-98
+47-->C:\Users\Rey\Documents\My projects\Mobile app\reminder app\modules\reminder-alarm\android\src\main\AndroidManifest.xml:39:17-96
+48            </intent-filter>
+49        </receiver>
+50    </application>
+51
+52</manifest>
