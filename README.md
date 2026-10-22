@@ -20,11 +20,11 @@ The app lets her set up each supplement with one or more daily doses, get a remi
 
 ## Application Screenshots
 
-![Home Dashboard](screenshots/1.jpg)
-![Home Dashboard](screenshots/2.jpg)
-![Home Dashboard](screenshots/3.jpg)
-![Home Dashboard](screenshots/4.jpg)
-![Home Dashboard](screenshots/5.jpg)
+!(screenshots/1.jpg)
+!(screenshots/2.jpg)
+!(screenshots/3.jpg)
+!(screenshots/4.jpg)
+!(screenshots/5.jpg)
 
 ## Technology Stack
 
